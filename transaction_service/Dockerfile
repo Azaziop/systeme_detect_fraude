@@ -7,11 +7,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copier le code du service
-COPY main.py .
+COPY . .
 
 # Exposer le port
 EXPOSE 8001
 
-# Commande de démarrage
+# Commande de démarrage par défaut (peut être overridé pour Celery)
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
-

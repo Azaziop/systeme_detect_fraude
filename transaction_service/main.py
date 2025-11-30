@@ -4,13 +4,31 @@ Capture les détails de transaction et les envoie au service de détection
 """
 
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 import httpx
 import os
 from datetime import datetime
 import random
 import numpy as np
+from sqlalchemy.orm import Session
+try:
+    from .models import Transaction, get_db, SessionLocal
+except ImportError:
+    from models import Transaction, get_db, SessionLocal
+
+# Celery optionnel
+try:
+    try:
+        from .tasks import check_fraud_async
+        CELERY_AVAILABLE = True
+    except ImportError:
+        from tasks import check_fraud_async
+        CELERY_AVAILABLE = True
+except ImportError:
+    CELERY_AVAILABLE = False
+    print("⚠️ Celery non disponible - utilisation de la vérification synchrone")
 
 app = FastAPI(
     title="Transaction Service",
@@ -18,14 +36,23 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Configuration CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # En développement, autoriser toutes les origines
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Configuration
 FRAUD_DETECTION_SERVICE_URL = os.getenv(
     "FRAUD_DETECTION_SERVICE_URL",
-    "http://fraud-detection-service:8002"
+    "http://localhost:8002"
 )
 AUTH_SERVICE_URL = os.getenv(
     "AUTH_SERVICE_URL",
-    "http://auth-service:8000"
+    "http://localhost:8000"
 )
 
 class TransactionCreate(BaseModel):
@@ -47,8 +74,7 @@ class TransactionResponse(BaseModel):
     fraud_score: Optional[float] = None
     timestamp: str
 
-# Stockage en mémoire (dans un vrai projet, utiliser une base de données)
-transactions_db = {}
+# Utiliser la base de données au lieu du stockage en mémoire
 
 def generate_features(amount: float) -> dict:
     """
@@ -138,85 +164,109 @@ async def health_check():
     return {"status": "healthy"}
 
 @app.post("/transactions", response_model=TransactionResponse)
-async def create_transaction(transaction: TransactionCreate):
+async def create_transaction(transaction: TransactionCreate, db: Session = Depends(get_db)):
     """
-    Crée une nouvelle transaction et la vérifie pour fraude
+    Crée une nouvelle transaction et la vérifie pour fraude (asynchrone avec Celery)
     """
-    # Vérifier l'authentification (optionnel pour le moment)
-    # is_authenticated = await verify_user_token(transaction.user_id)
-    # if not is_authenticated:
-    #     raise HTTPException(status_code=401, detail="Utilisateur non authentifié")
-    
     # Générer un ID de transaction
     transaction_id = f"TXN_{datetime.now().strftime('%Y%m%d%H%M%S')}_{random.randint(1000, 9999)}"
     
     # Générer les features pour le modèle ML
     features = generate_features(transaction.amount)
     
-    # Envoyer au service de détection de fraude
-    fraud_result = await detect_fraud(transaction_id, features)
+    # Créer la transaction en base avec statut PENDING
+    db_transaction = Transaction(
+        transaction_id=transaction_id,
+        user_id=transaction.user_id,
+        amount=transaction.amount,
+        merchant=transaction.merchant,
+        category=transaction.category,
+        description=transaction.description,
+        status='PENDING'
+    )
+    db.add(db_transaction)
+    db.commit()
+    db.refresh(db_transaction)
     
-    # Déterminer le statut
-    if fraud_result.get("is_fraud", False):
-        status = "BLOCKED"
+    # Vérification de fraude (asynchrone avec Celery si disponible, sinon synchrone)
+    if CELERY_AVAILABLE:
+        # Utiliser Celery pour traitement asynchrone
+        task = check_fraud_async.delay(transaction_id, features)
+        try:
+            fraud_result = task.get(timeout=10)
+        except Exception as e:
+            print(f"Erreur Celery: {e}")
+            fraud_result = await detect_fraud(transaction_id, features)
     else:
-        status = "APPROVED"
+        # Vérification synchrone directe
+        fraud_result = await detect_fraud(transaction_id, features)
     
-    # Sauvegarder la transaction
-    transaction_data = {
-        "transaction_id": transaction_id,
-        "user_id": transaction.user_id,
-        "amount": transaction.amount,
-        "merchant": transaction.merchant,
-        "category": transaction.category,
-        "description": transaction.description,
-        "status": status,
-        "is_fraud": fraud_result.get("is_fraud", False),
-        "fraud_score": fraud_result.get("fraud_score", 0.0),
-        "timestamp": datetime.now().isoformat()
-    }
-    
-    transactions_db[transaction_id] = transaction_data
-    
-    return TransactionResponse(**transaction_data)
+    # Mettre à jour la transaction avec le résultat
+    if fraud_result:
+        db_transaction.status = 'BLOCKED' if fraud_result.get("is_fraud", False) else 'APPROVED'
+        db_transaction.is_fraud = fraud_result.get("is_fraud", False)
+        db_transaction.fraud_score = fraud_result.get("fraud_score", 0.0)
+        db_transaction.confidence = fraud_result.get("confidence", 0.0)
+        db.commit()
+        
+        return TransactionResponse(
+            transaction_id=transaction_id,
+            user_id=transaction.user_id,
+            amount=transaction.amount,
+            merchant=transaction.merchant,
+            status=db_transaction.status,
+            is_fraud=db_transaction.is_fraud,
+            fraud_score=db_transaction.fraud_score,
+            timestamp=db_transaction.created_at.isoformat()
+        )
+    else:
+        # En cas d'erreur, garder PENDING
+        return TransactionResponse(
+            transaction_id=transaction_id,
+            user_id=transaction.user_id,
+            amount=transaction.amount,
+            merchant=transaction.merchant,
+            status='PENDING',
+            is_fraud=None,
+            fraud_score=None,
+            timestamp=db_transaction.created_at.isoformat()
+        )
 
 @app.get("/transactions/{transaction_id}")
-async def get_transaction(transaction_id: str):
+async def get_transaction(transaction_id: str, db: Session = Depends(get_db)):
     """
     Récupère une transaction par son ID
     """
-    if transaction_id not in transactions_db:
+    transaction = db.query(Transaction).filter(Transaction.transaction_id == transaction_id).first()
+    if not transaction:
         raise HTTPException(status_code=404, detail="Transaction non trouvée")
     
-    return transactions_db[transaction_id]
+    return transaction.to_dict()
 
 @app.get("/transactions")
-async def list_transactions(skip: int = 0, limit: int = 100):
+async def list_transactions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """
     Liste les transactions
     """
-    transactions = list(transactions_db.values())
+    total = db.query(Transaction).count()
+    transactions = db.query(Transaction).offset(skip).limit(limit).all()
     return {
-        "total": len(transactions),
-        "transactions": transactions[skip:skip+limit]
+        "total": total,
+        "transactions": [tx.to_dict() for tx in transactions]
     }
 
 @app.get("/users/{user_id}/transactions")
-async def get_user_transactions(user_id: str):
+async def get_user_transactions(user_id: str, db: Session = Depends(get_db)):
     """
     Récupère toutes les transactions d'un utilisateur
     """
-    user_transactions = [
-        tx for tx in transactions_db.values()
-        if tx["user_id"] == user_id
-    ]
+    transactions = db.query(Transaction).filter(Transaction.user_id == user_id).all()
     return {
         "user_id": user_id,
-        "total": len(user_transactions),
-        "transactions": user_transactions
+        "total": len(transactions),
+        "transactions": [tx.to_dict() for tx in transactions]
     }
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
-

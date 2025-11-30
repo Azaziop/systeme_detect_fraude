@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from .models import User
-from rest_framework.authtoken.models import Token
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -34,7 +33,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
             phone=validated_data.get('phone', '')
         )
-        Token.objects.create(user=user)
+        # Note: JWT tokens sont créés dans la vue, pas ici
         return user
 
 

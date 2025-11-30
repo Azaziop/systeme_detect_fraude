@@ -1,4 +1,38 @@
 services:
+  # Base de données PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-db
+    environment:
+      - POSTGRES_DB=fraud_detection
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - fraud-detection-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis pour cache et Celery
+  redis:
+    image: redis:7-alpine
+    container_name: redis-cache
+    ports:
+      - "6379:6379"
+    networks:
+      - fraud-detection-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Service d'authentification
   auth-service:
     build:
@@ -10,6 +44,17 @@ services:
     environment:
       - DEBUG=True
       - DJANGO_SECRET_KEY=dev-secret-key-change-in-production
+      - DB_NAME=fraud_detection
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - auth_db:/app/db
     networks:
@@ -32,9 +77,12 @@ services:
     environment:
       - FRAUD_DETECTION_SERVICE_URL=http://fraud-detection-service:8002
       - AUTH_SERVICE_URL=http://auth-service:8000
+      - DATABASE_URL=sqlite:///./transactions.db
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - fraud-detection-service
       - auth-service
+      - redis
     networks:
       - fraud-detection-network
     healthcheck:
@@ -43,6 +91,24 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Celery Worker pour tâches asynchrones
+  celery-worker:
+    build:
+      context: ./transaction_service
+      dockerfile: Dockerfile
+    container_name: celery-worker
+    command: celery -A transaction_service.celery_app worker --loglevel=info
+    environment:
+      - FRAUD_DETECTION_SERVICE_URL=http://fraud-detection-service:8002
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=sqlite:///./transactions.db
+    depends_on:
+      - redis
+      - fraud-detection-service
+    networks:
+      - fraud-detection-network
+    restart: unless-stopped
 
   # Service de détection de fraude
   fraud-detection-service:
@@ -65,6 +131,7 @@ services:
 
 volumes:
   auth_db:
+  postgres_data:
 
 networks:
   fraud-detection-network:
