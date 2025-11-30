@@ -1,0 +1,72 @@
+services:
+  # Service d'authentification
+  auth-service:
+    build:
+      context: ./auth_service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - DJANGO_SECRET_KEY=dev-secret-key-change-in-production
+    volumes:
+      - auth_db:/app/db
+    networks:
+      - fraud-detection-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/users/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Service de transaction
+  transaction-service:
+    build:
+      context: ./transaction_service
+      dockerfile: Dockerfile
+    container_name: transaction-service
+    ports:
+      - "8001:8001"
+    environment:
+      - FRAUD_DETECTION_SERVICE_URL=http://fraud-detection-service:8002
+      - AUTH_SERVICE_URL=http://auth-service:8000
+    depends_on:
+      - fraud-detection-service
+      - auth-service
+    networks:
+      - fraud-detection-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Service de détection de fraude
+  fraud-detection-service:
+    build:
+      context: ./fraud_detection_service
+      dockerfile: Dockerfile
+    container_name: fraud-detection-service
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./ml_model/models:/app/ml_model/models:ro
+    networks:
+      - fraud-detection-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  auth_db:
+
+networks:
+  fraud-detection-network:
+    driver: bridge
+

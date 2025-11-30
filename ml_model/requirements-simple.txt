@@ -1,0 +1,7 @@
+# Versions simplifiées pour éviter les problèmes de compilation
+# Utilisez ce fichier si requirements.txt ne fonctionne pas
+pandas
+numpy
+scikit-learn
+joblib
+
