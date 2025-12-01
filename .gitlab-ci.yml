@@ -1,0 +1,168 @@
+# GitLab CI/CD Pipeline pour le Projet de Détection de Fraude
+# Pipeline avec stages: test et deploy
+
+stages:
+  - test
+  - deploy
+
+variables:
+  # Variables Docker
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  # Registry GitLab (sera automatiquement défini par GitLab)
+  CI_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE
+  # Python version
+  PYTHON_VERSION: "3.9"
+
+# ============================================
+# STAGE: TEST
+# ============================================
+
+# Test du service d'authentification (Django)
+test:auth:
+  stage: test
+  image: python:3.9-slim
+  services:
+    - postgres:15-alpine
+  variables:
+    POSTGRES_DB: fraud_detection_test
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    POSTGRES_HOST_AUTH_METHOD: trust
+    DB_HOST: postgres
+    DB_NAME: fraud_detection_test
+    DB_USER: postgres
+    DB_PASSWORD: postgres
+  before_script:
+    - pip install --upgrade pip
+    - pip install -r auth_service/requirements.txt
+    - pip install pytest pytest-django pytest-cov
+  script:
+    - cd auth_service
+    - python manage.py migrate
+    - pytest --cov=. --cov-report=term-missing || true
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Test du service de transaction (FastAPI)
+test:transaction:
+  stage: test
+  image: python:3.9-slim
+  before_script:
+    - pip install --upgrade pip
+    - pip install -r transaction_service/requirements.txt
+    - pip install pytest pytest-asyncio httpx
+  script:
+    - cd transaction_service
+    - pytest tests.py -v || true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Test du service de détection de fraude (FastAPI)
+test:fraud-detection:
+  stage: test
+  image: python:3.9-slim
+  before_script:
+    - pip install --upgrade pip
+    - pip install -r fraud_detection_service/requirements.txt
+    - pip install pytest pytest-asyncio httpx
+  script:
+    - cd fraud_detection_service
+    - pytest tests.py -v || true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Test du modèle ML
+test:ml-model:
+  stage: test
+  image: python:3.9-slim
+  before_script:
+    - pip install --upgrade pip
+    - pip install -r ml_model/requirements.txt
+    - pip install pytest
+  script:
+    - cd ml_model
+    - python test_model.py || true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Tests d'intégration
+test:integration:
+  stage: test
+  image: python:3.9-slim
+  before_script:
+    - pip install --upgrade pip
+    - pip install pytest requests
+  script:
+    - pytest tests/integration_tests.py -v || true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# ============================================
+# STAGE: DEPLOY
+# ============================================
+
+# Build et push de l'image Docker pour Auth Service
+deploy:auth-service:
+  stage: deploy
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - cd auth_service
+    - docker build -t $CI_REGISTRY_IMAGE/auth-service:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/auth-service:latest .
+    - docker push $CI_REGISTRY_IMAGE/auth-service:$CI_COMMIT_SHORT_SHA
+    - docker push $CI_REGISTRY_IMAGE/auth-service:latest
+  only:
+    - main
+    - develop
+    - tags
+
+# Build et push de l'image Docker pour Transaction Service
+deploy:transaction-service:
+  stage: deploy
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - cd transaction_service
+    - docker build -t $CI_REGISTRY_IMAGE/transaction-service:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/transaction-service:latest .
+    - docker push $CI_REGISTRY_IMAGE/transaction-service:$CI_COMMIT_SHORT_SHA
+    - docker push $CI_REGISTRY_IMAGE/transaction-service:latest
+  only:
+    - main
+    - develop
+    - tags
+
+# Build et push de l'image Docker pour Fraud Detection Service
+deploy:fraud-detection-service:
+  stage: deploy
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - cd fraud_detection_service
+    - docker build -t $CI_REGISTRY_IMAGE/fraud-detection-service:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/fraud-detection-service:latest .
+    - docker push $CI_REGISTRY_IMAGE/fraud-detection-service:$CI_COMMIT_SHORT_SHA
+    - docker push $CI_REGISTRY_IMAGE/fraud-detection-service:latest
+  only:
+    - main
+    - develop
+    - tags
