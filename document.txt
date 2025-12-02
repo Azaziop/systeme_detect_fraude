@@ -1,0 +1,101 @@
+Postgres setup changes — summary (Project: systeme_detect_fraude)
+
+Purpose
+-------
+This document lists all edits that I applied to make PostgreSQL work with the repository's services, plus quick verification and rollback hints.
+
+Summary of intent
+-----------------
+- Enable Postgres as the shared DB for services (auth_service, transaction_service).
+- Make transaction_service use Postgres (instead of SQLite) and ensure psycopg2 can be installed.
+- Ensure containers start reliably (fix shell/line-ending issues and celery import path), and add verification docs.
+
+Files added or changed (high level)
+----------------------------------
+1) docker-compose.yml
+   - Kept the existing `postgres` service but changed the `DATABASE_URL` for `transaction-service` and `celery-worker` from sqlite to the Postgres connection string:
+     DATABASE_URL=postgresql://postgres:postgres@postgres:5432/fraud_detection
+   - Result: when you `docker compose up` the transaction service and celery worker will use the postgres container provided by this compose file.
+
+2) transaction_service/requirements.txt
+   - Added: psycopg2-binary==2.9.9
+   - Purpose: Install Postgres client driver for SQLAlchemy.
+
+3) transaction_service/Dockerfile
+   - Added system-level packages needed to build/install psycopg2: gcc and libpq-dev
+   - This prevents pip install errors during image build on the slim Python image.
+
+4) transaction_service/POSTGRES.md (new)
+   - A small verification guide for how to check connectivity locally with docker-compose and validate DB access.
+
+5) transaction_service/celery_app.py
+   - Updated the Celery include list from ['transaction_service.tasks'] to ['tasks'] so Celery can import the tasks module when the container copies files into /app (top-level modules).
+
+6) docker-compose.yml (celery worker command)
+   - Changed celery command from `celery -A transaction_service.celery_app worker --loglevel=info` to `celery -A celery_app worker --loglevel=info` to match how the service files are packaged in the container and allow the worker to import the Celery app successfully.
+
+7) auth_service/start.sh
+   - Fixed shebang to /bin/sh (more portable on slim images) and also made sure Dockerfile strips CRLF to avoid "no such file or directory" and "Illegal option" errors.
+
+8) auth_service/Dockerfile
+   - CMD changed to run the script via `sh start.sh` (explicit) and added a `sed -i 's/\r$//' start.sh` step to remove CRLF inside the image.
+
+9) ml_model/train_model.py (run externally)
+   - I executed training to produce `ml_model/models/isolation_forest_model.pkl` and `ml_model/models/scaler.pkl` so the fraud-detection-service has the model files it expects when starting (not strictly Postgres but necessary for the full stack to run).
+
+10) tests/integration_tests.py
+    - Made tests readable from different environments by allowing overriding base URLs via environment variables. This lets us run tests inside Docker attached to the compose network.
+
+Exact verification steps I ran (examples)
+----------------------------------------
+1) Start everything
+   docker compose up -d
+
+2) Verify Postgres healthy
+   docker ps
+   docker logs -f postgres-db
+   docker exec -it postgres-db pg_isready -U postgres
+
+3) Confirm services are using DATABASE_URL
+   docker exec -it transaction-service env | findstr DATABASE_URL
+
+4) Insert & read records with SQLAlchemy from inside the container (example)
+   docker exec -it transaction-service python -c "import models; s=models.SessionLocal(); t=models.Transaction(transaction_id='test-verify-003', user_id='user-verify', amount=11.11, merchant='unit-test', category='verification', description='inserted by test'); s.add(t); s.commit(); print('Inserted id', t.id); res=s.execute('select id,transaction_id from transactions where transaction_id=\'test-verify-003\''); print('Rows:', list(res.fetchall())); s.close()"
+
+5) Check tables in Postgres:
+   docker exec -it postgres-db psql -U postgres -d fraud_detection -c "\dt"
+
+6) Confirm Django migrations created tables (auth tables found and can be inspected via psql)
+   docker exec -it auth-service python manage.py migrate
+   docker exec -it postgres-db psql -U postgres -d fraud_detection -c "SELECT tablename FROM pg_tables WHERE schemaname='public';"
+
+Rollback hints
+--------------
+To revert to SQLite for transaction_service:
+- Reset `transaction_service/requirements.txt` to remove psycopg2-binary (or keep for compatibility).
+- Rebuild images and set DATABASE_URL back to the original sqlite value (sqlite:///./transactions.db) in docker-compose.yml or the container env.
+- Remove Postgres container from docker-compose if you no longer want it.
+
+Why these changes were required
+------------------------------
+- SQLAlchemy needs a DB driver (psycopg2) to talk to Postgres.
+- psycopg2 often needs system libraries (libpq) to compile or install a wheel in a minimal Python image.
+- docker-compose should set correct DATABASE_URL and service names for containers to talk to Postgres by service name.
+- container start issues (auth) were caused by CRLF line endings and an incompatible shebang on the slim image — corrected by normalizing and calling `sh`.
+- Celery import issues were caused by an incorrect module name/addressing in the docker-compose command and the Celery app include list.
+
+Notes / follow-ups
+------------------
+- Some start scripts and README docs still default to SQLite — you may want to update docs to prefer Postgres across all start commands.
+- For Kubernetes deployments: use Secrets for DB credentials and deploy an in-cluster Postgres StatefulSet or a managed Postgres service.
+
+If you want, I can:
+- Update the remaining scripts and docs to default to Postgres (e.g., start_*.bat/.sh, README pages), or
+- Add a short CI test that runs an end-to-end smoke test against Postgres using docker-compose, or
+- Provide a k8s manifest + Secret for Postgres.
+
+---
+
+Generated by: Changes applied by the assistant on 2025-12-02
+
+End of document
