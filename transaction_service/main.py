@@ -168,69 +168,80 @@ async def create_transaction(transaction: TransactionCreate, db: Session = Depen
     """
     Crée une nouvelle transaction et la vérifie pour fraude (asynchrone avec Celery)
     """
-    # Générer un ID de transaction
-    transaction_id = f"TXN_{datetime.now().strftime('%Y%m%d%H%M%S')}_{random.randint(1000, 9999)}"
-    
-    # Générer les features pour le modèle ML
-    features = generate_features(transaction.amount)
-    
-    # Créer la transaction en base avec statut PENDING
-    db_transaction = Transaction(
-        transaction_id=transaction_id,
-        user_id=transaction.user_id,
-        amount=transaction.amount,
-        merchant=transaction.merchant,
-        category=transaction.category,
-        description=transaction.description,
-        status='PENDING'
-    )
-    db.add(db_transaction)
-    db.commit()
-    db.refresh(db_transaction)
-    
-    # Vérification de fraude (asynchrone avec Celery si disponible, sinon synchrone)
-    if CELERY_AVAILABLE:
-        # Utiliser Celery pour traitement asynchrone
-        task = check_fraud_async.delay(transaction_id, features)
-        try:
-            fraud_result = task.get(timeout=10)
-        except Exception as e:
-            print(f"Erreur Celery: {e}")
-            fraud_result = await detect_fraud(transaction_id, features)
-    else:
-        # Vérification synchrone directe
-        fraud_result = await detect_fraud(transaction_id, features)
-    
-    # Mettre à jour la transaction avec le résultat
-    if fraud_result:
-        db_transaction.status = 'BLOCKED' if fraud_result.get("is_fraud", False) else 'APPROVED'
-        db_transaction.is_fraud = fraud_result.get("is_fraud", False)
-        db_transaction.fraud_score = fraud_result.get("fraud_score", 0.0)
-        db_transaction.confidence = fraud_result.get("confidence", 0.0)
-        db.commit()
+    try:
+        # Générer un ID de transaction
+        transaction_id = f"TXN_{datetime.now().strftime('%Y%m%d%H%M%S')}_{random.randint(1000, 9999)}"
         
-        return TransactionResponse(
+        # Générer les features pour le modèle ML
+        features = generate_features(transaction.amount)
+        
+        # Créer la transaction en base avec statut PENDING
+        db_transaction = Transaction(
             transaction_id=transaction_id,
             user_id=transaction.user_id,
             amount=transaction.amount,
             merchant=transaction.merchant,
-            status=db_transaction.status,
-            is_fraud=db_transaction.is_fraud,
-            fraud_score=db_transaction.fraud_score,
-            timestamp=db_transaction.created_at.isoformat()
+            category=transaction.category,
+            description=transaction.description,
+            status='PENDING'
         )
-    else:
-        # En cas d'erreur, garder PENDING
-        return TransactionResponse(
-            transaction_id=transaction_id,
-            user_id=transaction.user_id,
-            amount=transaction.amount,
-            merchant=transaction.merchant,
-            status='PENDING',
-            is_fraud=None,
-            fraud_score=None,
-            timestamp=db_transaction.created_at.isoformat()
-        )
+        db.add(db_transaction)
+        db.flush()  # Flush pour obtenir l'ID sans commit
+        db.commit()  # Commit pour sauvegarder la transaction
+        db.refresh(db_transaction)  # Rafraîchir pour obtenir les valeurs par défaut (created_at, etc.)
+        
+        # Vérification de fraude (asynchrone avec Celery si disponible, sinon synchrone)
+        if CELERY_AVAILABLE:
+            # Utiliser Celery pour traitement asynchrone
+            task = check_fraud_async.delay(transaction_id, features)
+            try:
+                fraud_result = task.get(timeout=10)
+            except Exception as e:
+                print(f"Erreur Celery: {e}")
+                fraud_result = await detect_fraud(transaction_id, features)
+        else:
+            # Vérification synchrone directe
+            fraud_result = await detect_fraud(transaction_id, features)
+        
+        # Mettre à jour la transaction avec le résultat
+        if fraud_result:
+            db_transaction.status = 'BLOCKED' if fraud_result.get("is_fraud", False) else 'APPROVED'
+            db_transaction.is_fraud = fraud_result.get("is_fraud", False)
+            db_transaction.fraud_score = fraud_result.get("fraud_score", 0.0)
+            db_transaction.confidence = fraud_result.get("confidence", 0.0)
+            db.commit()  # Commit pour sauvegarder les modifications
+            db.refresh(db_transaction)  # Rafraîchir pour obtenir les valeurs mises à jour
+            
+            return TransactionResponse(
+                transaction_id=transaction_id,
+                user_id=transaction.user_id,
+                amount=transaction.amount,
+                merchant=transaction.merchant,
+                status=db_transaction.status,
+                is_fraud=db_transaction.is_fraud,
+                fraud_score=db_transaction.fraud_score,
+                timestamp=db_transaction.created_at.isoformat()
+            )
+        else:
+            # En cas d'erreur, garder PENDING
+            return TransactionResponse(
+                transaction_id=transaction_id,
+                user_id=transaction.user_id,
+                amount=transaction.amount,
+                merchant=transaction.merchant,
+                status='PENDING',
+                is_fraud=None,
+                fraud_score=None,
+                timestamp=db_transaction.created_at.isoformat()
+            )
+    except Exception as e:
+        # Rollback en cas d'erreur
+        db.rollback()
+        error_msg = f"Erreur lors de la création de la transaction: {str(e)}"
+        print(f"❌ {error_msg}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @app.get("/transactions/{transaction_id}")
 async def get_transaction(transaction_id: str, db: Session = Depends(get_db)):

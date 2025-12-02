@@ -50,19 +50,25 @@ class Transaction(Base):
 
 
 # Configuration de la base de données
-DATABASE_URL = os.getenv(
-    'DATABASE_URL',
-    'sqlite:///./transactions.db'
-)
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/fraud_detection')
 
-# Créer l'engine
+# Créer l'engine avec configuration optimisée (PostgreSQL attendu)
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if 'sqlite' in DATABASE_URL else {}
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+    echo=False
 )
+print(f"✅ Connexion configurée: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else DATABASE_URL}")
 
 # Créer les tables
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+    print("✅ Tables créées avec succès dans la base de données")
+except Exception as e:
+    print(f"⚠️ Erreur lors de la création des tables: {e}")
+    print("   Les tables peuvent déjà exister ou il y a un problème de connexion.")
 
 # Créer la session
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

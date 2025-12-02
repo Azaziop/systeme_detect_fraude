@@ -79,14 +79,9 @@ DATABASES = {
     }
 }
 
-# Fallback vers SQLite si PostgreSQL n'est pas disponible
-if os.getenv('USE_SQLITE', 'False') == 'True' or not os.getenv('DB_HOST'):
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+# NOTE: Removed automatic SQLite fallback. This project requires PostgreSQL.
+# To run locally ensure PostgreSQL is installed and the following env vars are set:
+# DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
