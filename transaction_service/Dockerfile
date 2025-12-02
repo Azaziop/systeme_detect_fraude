@@ -1,6 +1,13 @@
+# Use slim image but install build deps required by some DB drivers
 FROM python:3.9-slim
 
 WORKDIR /app
+
+# Installer dépendances système (gcc + libpq pour psycopg2 if wheel not available)
+RUN apt-get update && apt-get install -y \
+	gcc \
+	libpq-dev \
+	&& rm -rf /var/lib/apt/lists/*
 
 # Copier les requirements
 COPY requirements.txt .

@@ -17,10 +17,12 @@ COPY . .
 # Script de démarrage
 COPY start.sh .
 RUN chmod +x start.sh
+# Remove potential Windows CRLF line endings that break shell execution in image
+RUN sed -i 's/\r$//' start.sh || true
 
 # Exposer le port
 EXPOSE 8000
 
 # Commande de démarrage
-CMD ["./start.sh"]
+CMD ["sh", "start.sh"]
 

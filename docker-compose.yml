@@ -77,7 +77,8 @@ services:
     environment:
       - FRAUD_DETECTION_SERVICE_URL=http://fraud-detection-service:8002
       - AUTH_SERVICE_URL=http://auth-service:8000
-      - DATABASE_URL=sqlite:///./transactions.db
+      # Use Postgres provided by the "postgres" service in this compose file
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/fraud_detection
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - fraud-detection-service
@@ -102,7 +103,8 @@ services:
     environment:
       - FRAUD_DETECTION_SERVICE_URL=http://fraud-detection-service:8002
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=sqlite:///./transactions.db
+      # Celery worker will use the same database URL
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/fraud_detection
     depends_on:
       - redis
       - fraud-detection-service
