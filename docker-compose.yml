@@ -13,6 +13,7 @@ services:
       - "5432:5432"
     networks:
       - fraud-detection-network
+    
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -130,6 +131,27 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Frontend static files (served by nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - auth-service
+      - transaction-service
+      - fraud-detection-service
+    networks:
+      - fraud-detection-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
 volumes:
   auth_db:
