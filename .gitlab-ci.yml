@@ -168,3 +168,30 @@ deploy:fraud-detection-service:
     - main
     - develop
     - tags
+
+# Deploy to Kubernetes cluster (requires CI variable `KUBE_CONFIG` - base64 of kubeconfig)
+deploy:k8s:
+  stage: deploy
+  image: bitnami/kubectl:1.27
+  variables:
+    KUBECONFIG_FILE: "$CI_PROJECT_DIR/kubeconfig"
+  before_script:
+    # Decode KUBE_CONFIG (base64) into kubeconfig file
+    - if [ -n "$KUBE_CONFIG" ]; then echo "$KUBE_CONFIG" | base64 -d > "$KUBECONFIG_FILE"; export KUBECONFIG="$KUBECONFIG_FILE"; fi
+    - kubectl version --client
+  script:
+    - |
+      if [ -z "$KUBE_CONFIG" ]; then
+        echo "KUBE_CONFIG variable not set. Skipping k8s deploy."; exit 0;
+      fi
+    # Replace image placeholders in k8s manifests to point to GitLab registry
+    - sed -i "s|fraud-detection/auth-service:latest|$CI_REGISTRY_IMAGE/auth-service:latest|g" k8s/*.yaml || true
+    - sed -i "s|fraud-detection/transaction-service:latest|$CI_REGISTRY_IMAGE/transaction-service:latest|g" k8s/*.yaml || true
+    - sed -i "s|fraud-detection/fraud-detection-service:latest|$CI_REGISTRY_IMAGE/fraud-detection-service:latest|g" k8s/*.yaml || true
+    - kubectl apply -f k8s/ --namespace=fraud-detection
+  only:
+    - main
+  when: manual
+  environment:
+    name: production
+    url: http://auth-service.example.com
