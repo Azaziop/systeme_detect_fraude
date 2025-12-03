@@ -172,7 +172,7 @@ deploy:fraud-detection-service:
 # Deploy to Kubernetes cluster (requires CI variable `KUBE_CONFIG` - base64 of kubeconfig)
 deploy:k8s:
   stage: deploy
-  image: bitnami/kubectl:1.27
+  image: alpine/kubectl:latest
   variables:
     KUBECONFIG_FILE: "$CI_PROJECT_DIR/kubeconfig"
   before_script:
