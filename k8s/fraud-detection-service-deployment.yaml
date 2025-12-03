@@ -28,9 +28,11 @@ spec:
       labels:
         app: fraud-detection-service
     spec:
+      imagePullSecrets:
+      - name: gitlab-registry
       containers:
       - name: fraud-detection-service
-        image: fraud-detection/fraud-detection-service:latest
+        image: registry.gitlab.com/azaziop/systeme_detect_fraude/fraud-detection-service:latest
         ports:
         - containerPort: 8002
         volumeMounts:
