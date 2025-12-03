@@ -37,6 +37,8 @@ test:auth:
     - pip install --upgrade pip
     - pip install -r auth_service/requirements.txt
     - pip install pytest pytest-django pytest-cov
+    - pip show psycopg2-binary || true
+    - env | grep DB_ || true
   script:
     - cd auth_service
     - python manage.py migrate
