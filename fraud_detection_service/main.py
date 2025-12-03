@@ -1,28 +1,16 @@
-<<<<<<< HEAD
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional
-=======
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional
->>>>>>> b11942a3962be8c18d2f680c404f11a716b0fa4e
 import joblib
 import numpy as np
 import json
 from pathlib import Path
 import os
-<<<<<<< HEAD
 import asyncio # Nécessaire pour gérer les appels asynchrones
-=======
-import hashlib
->>>>>>> b11942a3962be8c18d2f680c404f11a716b0fa4e
 
 app = FastAPI(title="Fraud Detection Service")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-<<<<<<< HEAD
 # Chemins des modèles
 # Dans Docker, le volume est monté à /app/ml_model/models
 MODEL_DIR = Path("/app/ml_model/models")
@@ -32,17 +20,12 @@ if not MODEL_DIR.exists():
 
 # Chemin du modèle Random Forest
 MODEL_PATH = MODEL_DIR / "random_forest_model.pkl"
-=======
-MODEL_DIR = Path(__file__).parent.parent / "ml_model" / "models"
-MODEL_PATH_RF = MODEL_DIR / "random_forest_model.pkl"
->>>>>>> b11942a3962be8c18d2f680c404f11a716b0fa4e
 SCALER_PATH = MODEL_DIR / "scaler.pkl"
 FEATURES_PATH = MODEL_DIR / "feature_columns.json"
 
 model = None
 scaler = None
 feature_columns = None
-<<<<<<< HEAD
 
 # Seuil de décision pour la détection de fraude (ajustable)
 # Si P(Fraude) > FRAUD_THRESHOLD → Fraude (1.0), si P(Fraude) ≤ FRAUD_THRESHOLD → Normal (0.0)
@@ -91,28 +74,19 @@ class TransactionRequest(BaseModel):
     """Requête pour analyser une transaction"""
     transaction_id: str
     features: TransactionFeatures
-=======
-model_type = None
-FRAUD_THRESHOLD = 0.5  # Seuil de détection à 50%
-
-class SimpleTransactionRequest(BaseModel):
-    amount: float
-    merchant: str
-    category: Optional[str] = "Other"
->>>>>>> b11942a3962be8c18d2f680c404f11a716b0fa4e
 
 class FraudDetectionResponse(BaseModel):
     is_fraud: bool
-<<<<<<< HEAD
-    # Score et confidence sont la probabilité P(Fraude) [0.0 à 1.0]
-    fraud_score: float = Field(..., description="Probabilité de fraude (0.0 à 1.0)")
-    confidence: float = Field(..., description="Confiance dans la prédiction (0.0 à 1.0)")
+    from fastapi import FastAPI, HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
+    from pydantic import BaseModel, Field
+    from typing import List, Optional
 
 def load_model():
     """Charge le modèle Random Forest et le scaler"""
     global model, scaler, feature_columns
     
-    if model is None:
+    import hashlib
         # Vérification et chargement du modèle
         if not MODEL_PATH.exists():
             raise FileNotFoundError(f"Modèle Random Forest non trouvé à: {MODEL_PATH}")
@@ -142,27 +116,11 @@ def load_model():
 
         print(f"✅ Modèle Random Forest chargé avec succès. Features: {len(feature_columns)} colonnes")
         print(f"   Seuil de détection: {FRAUD_THRESHOLD}")
-=======
-    fraud_score: float
-    confidence: float
-    reason: Optional[str] = None
-
-def load_model():
-    global model, scaler, feature_columns, model_type
-    if model is None:
-        model = joblib.load(MODEL_PATH_RF)
-        model_type = 'random_forest'
-        scaler = joblib.load(SCALER_PATH) if SCALER_PATH.exists() else None
-        with open(FEATURES_PATH) as f:
-            feature_columns = json.load(f)
-        print(f"Service ML pret - Seuil: {FRAUD_THRESHOLD} - Limite: 5000 EUR")
->>>>>>> b11942a3962be8c18d2f680c404f11a716b0fa4e
 
 @app.on_event("startup")
 async def startup_event(): load_model()
 
 @app.get("/")
-<<<<<<< HEAD
 async def root():
     """Endpoint de santé"""
     return {
@@ -194,41 +152,9 @@ async def detect_fraud(transaction: TransactionRequest):
             # Le scaler attend les features dans l'ordre de feature_columns
             feature_scaled = scaler.transform(feature_array)
             feature_scaled = np.array(feature_scaled, dtype=np.float32)
-=======
-async def root(): return {"service": "Fraud Detection", "status": "running"}
-
-@app.get("/health")
-async def health(): return {"status": "healthy", "model_loaded": model is not None}
-
-@app.post("/predict")
-async def predict_fraud(transaction: SimpleTransactionRequest):
-    if model is None: raise HTTPException(503, "Modele non charge")
-    try:
-        # RÈGLES STRICTES : Tout montant > 5000€ = FRAUDE
-        risk_score = 0.0
-        reasons = []
-        
-        # Limites de montant avec scores élevés
-        if transaction.amount > 100000:
-            risk_score = 0.95
-            reasons.append("Montant tres eleve (>100K)")
-        elif transaction.amount > 50000:
-            risk_score = 0.85
-            reasons.append("Montant eleve (>50K)")
-        elif transaction.amount > 20000:
-            risk_score = 0.75
-            reasons.append("Montant suspect (>20K)")
-        elif transaction.amount > 10000:
-            risk_score = 0.65
-            reasons.append("Montant moyen (>10K)")
-        elif transaction.amount > 5000:
-            risk_score = 0.55
-            reasons.append("Montant suspect (>5K)")
->>>>>>> b11942a3962be8c18d2f680c404f11a716b0fa4e
         else:
             risk_score = 0.1
         
-<<<<<<< HEAD
         # Prédiction des probabilités
         proba = model.predict_proba(feature_scaled)[0]
         
@@ -282,9 +208,8 @@ async def detect_fraud_batch(transactions: List[TransactionRequest]):
 if __name__ == "__main__":
     import uvicorn
     # Le port 8002 est souvent utilisé pour les services ML.
-=======
         # Merchant suspect si nom court ET montant > 1000€
-        if len(transaction.merchant) <= 2 and transaction.amount > 1000:
+    if len(transaction.merchant) <= 2 and transaction.amount > 1000:
             risk_score += 0.1
             reasons.append("Merchant suspect")
         
@@ -322,5 +247,4 @@ if __name__ == "__main__":
 
 if __name__ == "__main__":
     import uvicorn
->>>>>>> b11942a3962be8c18d2f680c404f11a716b0fa4e
     uvicorn.run(app, host="0.0.0.0", port=8002)
