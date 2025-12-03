@@ -172,13 +172,14 @@ deploy:fraud-detection-service:
 # Deploy to Kubernetes cluster (requires CI variable `KUBE_CONFIG` - base64 of kubeconfig)
 deploy:k8s:
   stage: deploy
-  image: alpine/kubectl:latest
-  variables:
-    KUBECONFIG_FILE: "$CI_PROJECT_DIR/kubeconfig"
+  image: alpine:3.18
   before_script:
-    # Decode KUBE_CONFIG (base64) into kubeconfig file
-    - if [ -n "$KUBE_CONFIG" ]; then echo "$KUBE_CONFIG" | base64 -d > "$KUBECONFIG_FILE"; export KUBECONFIG="$KUBECONFIG_FILE"; fi
-    - kubectl version --client
+    - apk add --no-cache curl bash
+    - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    - chmod +x kubectl
+    - mv kubectl /usr/local/bin/
+    - if [ -n "$KUBE_CONFIG" ]; then echo "$KUBE_CONFIG" | base64 -d > /tmp/kubeconfig; export KUBECONFIG="/tmp/kubeconfig"; fi
+    - kubectl version --client || true
   script:
     - |
       if [ -z "$KUBE_CONFIG" ]; then
