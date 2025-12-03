@@ -183,6 +183,8 @@ smoke:auth-service:
   image: docker:24-dind
   services:
     - docker:24-dind
+  needs:
+    - job: deploy:auth-service
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
@@ -202,6 +204,8 @@ smoke:transaction-service:
   image: docker:24-dind
   services:
     - docker:24-dind
+  needs:
+    - job: deploy:transaction-service
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
@@ -221,6 +225,8 @@ smoke:fraud-detection-service:
   image: docker:24-dind
   services:
     - docker:24-dind
+  needs:
+    - job: deploy:fraud-detection-service
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
