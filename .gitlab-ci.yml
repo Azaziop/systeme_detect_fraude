@@ -135,6 +135,7 @@ deploy:auth-service:
   only:
     - main
     - develop
+    - AymenCasee
     - tags
 
 # Build et push de l'image Docker pour Transaction Service
