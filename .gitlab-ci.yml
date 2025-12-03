@@ -4,15 +4,19 @@
 stages:
   - test
   - deploy
+  - smoke
 
 variables:
   # Variables Docker
   DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: "/certs"
   # Registry GitLab (sera automatiquement défini par GitLab)
   CI_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE
   # Python version
   PYTHON_VERSION: "3.9"
+
+  # Faciliter Docker-in-Docker (si runner configuré en mode privilégié)
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
 
 # ============================================
 # STAGE: TEST
@@ -37,6 +41,8 @@ test:auth:
     - pip install --upgrade pip
     - pip install -r auth_service/requirements.txt
     - pip install pytest pytest-django pytest-cov
+    - pip show psycopg2-binary || true
+    - env | grep DB_ || true
   script:
     - cd auth_service
     - python manage.py migrate
@@ -166,3 +172,133 @@ deploy:fraud-detection-service:
     - main
     - develop
     - tags
+
+# ============================================
+# STAGE: SMOKE (validation basique des images Docker)
+# ============================================
+
+smoke:auth-service:
+  stage: smoke
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  needs:
+    - job: deploy:auth-service
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker pull $CI_REGISTRY_IMAGE/auth-service:latest
+    - docker rm -f auth-smoke || true
+    - docker run -d --name auth-smoke $CI_REGISTRY_IMAGE/auth-service:latest
+    - sleep 8
+    - docker ps --filter "name=auth-smoke" --format '{{.Status}}'
+    - docker logs --tail=50 auth-smoke || true
+    - docker rm -f auth-smoke
+  only:
+    - main
+    - develop
+
+smoke:transaction-service:
+  stage: smoke
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  needs:
+    - job: deploy:transaction-service
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker pull $CI_REGISTRY_IMAGE/transaction-service:latest
+    - docker rm -f tx-smoke || true
+    - docker run -d --name tx-smoke $CI_REGISTRY_IMAGE/transaction-service:latest
+    - sleep 8
+    - docker ps --filter "name=tx-smoke" --format '{{.Status}}'
+    - docker logs --tail=50 tx-smoke || true
+    - docker rm -f tx-smoke
+  only:
+    - main
+    - develop
+
+smoke:fraud-detection-service:
+  stage: smoke
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  needs:
+    - job: deploy:fraud-detection-service
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker pull $CI_REGISTRY_IMAGE/fraud-detection-service:latest
+    - docker rm -f fraud-smoke || true
+    - docker run -d --name fraud-smoke $CI_REGISTRY_IMAGE/fraud-detection-service:latest
+    - sleep 8
+    - docker ps --filter "name=fraud-smoke" --format '{{.Status}}'
+    - docker logs --tail=50 fraud-smoke || true
+    - docker rm -f fraud-smoke
+  only:
+    - main
+    - develop
+
+# Deploy to local Kubernetes cluster (Docker Desktop K8s or local K8s)
+# Requires: KUBE_CONFIG variable (base64-encoded kubeconfig) set in GitLab CI/CD settings
+deploy:k8s:
+  stage: deploy
+  image: alpine:3.18
+  before_script:
+    - apk add --no-cache curl bash git
+    # Download kubectl
+    - curl -fsSLO https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl
+    - chmod +x kubectl
+    - mv kubectl /usr/local/bin/
+    # Configure kubeconfig from CI variable
+    - |
+      if [ -n "$KUBE_CONFIG" ]; then
+        mkdir -p ~/.kube
+        echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+        echo "✓ Kubeconfig configured"
+      else
+        echo "⚠ KUBE_CONFIG variable not set. K8s deploy will be skipped."
+        exit 0
+      fi
+    # Verify cluster access
+    - kubectl cluster-info
+    - kubectl get nodes
+  script:
+    - echo "Starting Kubernetes deployment..."
+    # Create namespace if it doesn't exist
+    - kubectl create namespace fraud-detection --dry-run=client -o yaml | kubectl apply -f -
+    # Update image tags in k8s manifests to use GitLab registry
+    - |
+      find k8s -name "*.yaml" -type f -exec sed -i \
+        -e "s|IMAGE_REGISTRY|$CI_REGISTRY_IMAGE|g" \
+        -e "s|:latest|:$CI_COMMIT_SHORT_SHA|g" \
+        {} \;
+    # Apply k8s manifests
+    - kubectl apply -f k8s/ -n fraud-detection
+    # Wait for rollouts to complete
+    - echo "Waiting for deployments to be ready..."
+    - kubectl rollout status deployment/auth-service -n fraud-detection --timeout=5m
+    - kubectl rollout status deployment/transaction-service -n fraud-detection --timeout=5m
+    - kubectl rollout status deployment/fraud-detection-service -n fraud-detection --timeout=5m
+    # Show deployment status
+    - kubectl get deployments -n fraud-detection
+    - kubectl get pods -n fraud-detection
+    - kubectl get services -n fraud-detection
+    - echo "✓ Kubernetes deployment completed successfully"
+  after_script:
+    - echo "Deployment summary:"
+    - kubectl get all -n fraud-detection --no-headers | head -20
+  only:
+    - main
+    - develop
+  needs:
+    - job: deploy:auth-service
+    - job: deploy:transaction-service
+    - job: deploy:fraud-detection-service
+  environment:
+    name: production-k8s
+    url: http://localhost
+    deployment_tier: production
+  allow_failure: false
