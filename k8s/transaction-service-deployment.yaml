@@ -17,7 +17,8 @@ spec:
     spec:
       containers:
       - name: transaction-service
-        image: fraud-detection/transaction-service:latest
+        image: systeme_detect_fraude-transaction-service:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8001
         env:

@@ -1,16 +1,3 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: ml-model-pvc
-  namespace: fraud-detection
-spec:
-  accessModes:
-    - ReadOnlyMany
-  resources:
-    requests:
-      storage: 1Gi
-
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,13 +17,10 @@ spec:
     spec:
       containers:
       - name: fraud-detection-service
-        image: fraud-detection/fraud-detection-service:latest
+        image: systeme_detect_fraude-fraud-detection-service:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8002
-        volumeMounts:
-        - name: ml-models
-          mountPath: /app/ml_model/models
-          readOnly: true
         resources:
           requests:
             memory: "512Mi"
@@ -56,10 +40,6 @@ spec:
             port: 8002
           initialDelaySeconds: 10
           periodSeconds: 5
-      volumes:
-      - name: ml-models
-        persistentVolumeClaim:
-          claimName: ml-model-pvc
 
 ---
 apiVersion: v1
