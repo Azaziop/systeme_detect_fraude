@@ -3,86 +3,358 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion de Transactions - Détection de Fraude</title>
+    <meta name="description" content="Système de détection de fraude bancaire en temps réel">
+    <meta name="author" content="Fraud Detection System">
+    <title>Système de Détection de Fraude - Dashboard</title>
+    
+    <!-- Styles -->
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Font Awesome pour les icônes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💳</text></svg>">
 </head>
 <body>
+    <!-- Barre de navigation -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <div class="navbar-brand">
+                <i class="fas fa-shield-alt"></i>
+                <span>Fraud Detection</span>
+            </div>
+            <div class="navbar-actions">
+                <button id="theme-toggle" onclick="toggleTheme()" class="btn-theme" aria-label="Changer le thème">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button id="logout-btn" onclick="logout()" class="btn-logout" style="display: none;">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Déconnexion</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
     <div class="container">
+        <!-- En-tête -->
         <header>
-            <h1>💳 Système de Gestion de Transactions</h1>
-            <p>Système de détection de fraude en temps réel</p>
+            <div class="header-content">
+                <div class="header-icon">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <div class="header-text">
+                    <h1>💳 Système de Détection de Fraude</h1>
+                    <p>Protection en temps réel de vos transactions bancaires</p>
+                </div>
+            </div>
         </header>
 
         <!-- Section Authentification -->
         <section id="auth-section" class="card">
-            <h2>🔐 Authentification</h2>
+            <div class="card-header">
+                <h2><i class="fas fa-lock"></i> Authentification</h2>
+            </div>
+            
+            <!-- Formulaire de connexion -->
             <div id="login-form">
                 <h3>Connexion</h3>
-                <input type="text" id="login-username" placeholder="Username" value="testuser">
-                <input type="password" id="login-password" placeholder="Password" value="testpass123">
-                <button onclick="login()">Se connecter</button>
-                <p><a href="#" onclick="showRegister()">Pas de compte ? S'inscrire</a></p>
+                <form onsubmit="event.preventDefault(); login();">
+                    <div class="form-group">
+                        <label for="login-username">
+                            <i class="fas fa-user"></i> Nom d'utilisateur
+                        </label>
+                        <input 
+                            type="text" 
+                            id="login-username" 
+                            placeholder="Entrez votre nom d'utilisateur" 
+                            value="testuser"
+                            required
+                            autocomplete="username">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="login-password">
+                            <i class="fas fa-key"></i> Mot de passe
+                        </label>
+                        <input 
+                            type="password" 
+                            id="login-password" 
+                            placeholder="Entrez votre mot de passe" 
+                            value="testpass123"
+                            required
+                            autocomplete="current-password">
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-sign-in-alt"></i> Se connecter
+                    </button>
+                </form>
+                
+                <p class="form-footer">
+                    <a href="#" onclick="showRegister(); return false;">
+                        Pas de compte ? S'inscrire
+                    </a>
+                </p>
             </div>
+            
+            <!-- Formulaire d'inscription -->
             <div id="register-form" style="display: none;">
                 <h3>Inscription</h3>
-                <input type="text" id="reg-username" placeholder="Username">
-                <input type="email" id="reg-email" placeholder="Email">
-                <input type="password" id="reg-password" placeholder="Password">
-                <input type="password" id="reg-password-confirm" placeholder="Confirmer Password">
-                <button onclick="register()">S'inscrire</button>
-                <p><a href="#" onclick="showLogin()">Déjà un compte ? Se connecter</a></p>
+                <form onsubmit="event.preventDefault(); register();">
+                    <div class="form-group">
+                        <label for="reg-username">
+                            <i class="fas fa-user"></i> Nom d'utilisateur
+                        </label>
+                        <input 
+                            type="text" 
+                            id="reg-username" 
+                            placeholder="Choisissez un nom d'utilisateur"
+                            required
+                            minlength="3"
+                            autocomplete="username">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reg-email">
+                            <i class="fas fa-envelope"></i> Email
+                        </label>
+                        <input 
+                            type="email" 
+                            id="reg-email" 
+                            placeholder="votre@email.com"
+                            required
+                            autocomplete="email">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reg-password">
+                            <i class="fas fa-key"></i> Mot de passe
+                        </label>
+                        <input 
+                            type="password" 
+                            id="reg-password" 
+                            placeholder="Minimum 8 caractères"
+                            required
+                            minlength="8"
+                            autocomplete="new-password">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reg-password-confirm">
+                            <i class="fas fa-key"></i> Confirmer le mot de passe
+                        </label>
+                        <input 
+                            type="password" 
+                            id="reg-password-confirm" 
+                            placeholder="Répétez votre mot de passe"
+                            required
+                            minlength="8"
+                            autocomplete="new-password">
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-user-plus"></i> S'inscrire
+                    </button>
+                </form>
+                
+                <p class="form-footer">
+                    <a href="#" onclick="showLogin(); return false;">
+                        Déjà un compte ? Se connecter
+                    </a>
+                </p>
             </div>
+            
+            <!-- Informations utilisateur (affiché après connexion) -->
             <div id="user-info" style="display: none;">
-                <p>Connecté en tant que : <strong id="current-user"></strong></p>
-                <button onclick="logout()">Déconnexion</button>
+                <div class="user-info-content">
+                    <i class="fas fa-user-circle fa-3x"></i>
+                    <div>
+                        <p style="margin: 0; color: var(--text-secondary);">Connecté en tant que :</p>
+                        <strong id="current-user" style="font-size: 1.2em; color: var(--primary-color);"></strong>
+                    </div>
+                </div>
             </div>
         </section>
 
-        <!-- Section Transaction -->
+        <!-- Section Dashboard -->
+        <section id="dashboard-section" class="card" style="display: none;">
+            <div class="card-header">
+                <h2><i class="fas fa-chart-line"></i> Tableau de bord</h2>
+            </div>
+            
+            <div class="dashboard-stats">
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-credit-card"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span id="total-transactions" class="stat-number">0</span>
+                        <p>Transactions totales</p>
+                    </div>
+                </div>
+                
+                <div class="stat-item stat-danger">
+                    <div class="stat-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span id="fraud-transactions" class="stat-number">0</span>
+                        <p>Fraudes détectées</p>
+                    </div>
+                </div>
+                
+                <div class="stat-item stat-success">
+                    <div class="stat-icon">
+                        <i class="fas fa-euro-sign"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span id="total-amount" class="stat-number">0.00 €</span>
+                        <p>Montant total</p>
+                    </div>
+                </div>
+            </div>
+            
+            <p id="real-time-status" class="real-time">
+                <i class="fas fa-sync-alt"></i> Mise à jour automatique activée
+            </p>
+        </section>
+
+        <!-- Section Création de transaction -->
         <section id="transaction-section" class="card" style="display: none;">
-            <h2>💸 Créer une Transaction</h2>
+            <div class="card-header">
+                <h2><i class="fas fa-plus-circle"></i> Créer une transaction</h2>
+            </div>
+            
             <form id="transaction-form" onsubmit="createTransaction(event)">
-                <div class="form-group">
-                    <label>Montant (€)</label>
-                    <input type="number" id="amount" step="0.01" min="0.01" required placeholder="100.50">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="amount">
+                            <i class="fas fa-euro-sign"></i> Montant (€) *
+                        </label>
+                        <input 
+                            type="number" 
+                            id="amount" 
+                            step="0.01" 
+                            min="0.01" 
+                            required 
+                            placeholder="100.50">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="merchant">
+                            <i class="fas fa-store"></i> Marchand *
+                        </label>
+                        <input 
+                            type="text" 
+                            id="merchant" 
+                            required 
+                            placeholder="Ex: Amazon" 
+                            maxlength="100">
+                    </div>
                 </div>
+                
                 <div class="form-group">
-                    <label>Marchand</label>
-                    <input type="text" id="merchant" required placeholder="Amazon">
-                </div>
-                <div class="form-group">
-                    <label>Catégorie</label>
-                    <select id="category">
-                        <option value="">Sélectionner...</option>
-                        <option value="Shopping">Shopping</option>
-                        <option value="Food">Restaurant</option>
-                        <option value="Transport">Transport</option>
-                        <option value="Entertainment">Divertissement</option>
-                        <option value="Other">Autre</option>
+                    <label for="category">
+                        <i class="fas fa-tags"></i> Catégorie *
+                    </label>
+                    <select id="category" required>
+                        <option value="">Sélectionner une catégorie...</option>
+                        <option value="Shopping">🛍️ Shopping</option>
+                        <option value="Food">🍽️ Restaurant</option>
+                        <option value="Transport">🚗 Transport</option>
+                        <option value="Entertainment">🎬 Divertissement</option>
+                        <option value="Health">⚕️ Santé</option>
+                        <option value="Travel">✈️ Voyage</option>
+                        <option value="Other">📌 Autre</option>
                     </select>
                 </div>
+                
                 <div class="form-group">
-                    <label>Description</label>
-                    <textarea id="description" rows="3" placeholder="Description de la transaction"></textarea>
+                    <label for="description">
+                        <i class="fas fa-comment"></i> Description
+                    </label>
+                    <textarea 
+                        id="description" 
+                        rows="3" 
+                        placeholder="Description de la transaction (optionnel)" 
+                        maxlength="255"></textarea>
                 </div>
-                <button type="submit">Créer la Transaction</button>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-paper-plane"></i> Créer la transaction
+                    </button>
+                    <button type="button" onclick="loadTransactions()" class="btn-secondary">
+                        <i class="fas fa-sync-alt"></i> Rafraîchir
+                    </button>
+                </div>
             </form>
         </section>
 
-        <!-- Section Liste des Transactions -->
+        <!-- Section Liste des transactions -->
         <section id="transactions-list" class="card" style="display: none;">
-            <h2>📋 Mes Transactions</h2>
-            <button onclick="loadTransactions()">Actualiser</button>
+            <div class="card-header">
+                <h2><i class="fas fa-list"></i> Historique des transactions</h2>
+            </div>
+            
+            <!-- Filtres -->
+            <div class="filters">
+                <div class="filter-group">
+                    <label for="filter-status">
+                        <i class="fas fa-filter"></i> Filtrer par statut
+                    </label>
+                    <select id="filter-status">
+                        <option value="">Tous les statuts</option>
+                        <option value="approved">✓ Approuvées</option>
+                        <option value="blocked">✗ Bloquées</option>
+                        <option value="pending">⏳ En attente</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="search-merchant">
+                        <i class="fas fa-search"></i> Rechercher un marchand
+                    </label>
+                    <input 
+                        type="text" 
+                        id="search-merchant" 
+                        placeholder="Rechercher par marchand...">
+                </div>
+                
+                <div class="filter-actions">
+                    <button onclick="applyFilters()" class="btn-secondary">
+                        <i class="fas fa-check"></i> Appliquer
+                    </button>
+                    <button onclick="exportTransactions()" class="btn-success">
+                        <i class="fas fa-download"></i> Exporter CSV
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Liste des transactions -->
             <div id="transactions-container">
-                <p>Chargement...</p>
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p>Chargement des transactions...</p>
+                </div>
             </div>
         </section>
-
-        <!-- Messages -->
-        <div id="message" class="message"></div>
     </div>
 
+    <!-- Notification en bas à droite -->
+    <div id="notification" class="notification" style="display: none;">
+        <i class="fas fa-bell"></i>
+        <span id="notification-text"></span>
+        <button onclick="closeNotification()" aria-label="Fermer la notification">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <!-- Message en haut à droite -->
+    <div id="message" class="message"></div>
+
+    <!-- Script principal -->
     <script src="app.js"></script>
 </body>
 </html>
-

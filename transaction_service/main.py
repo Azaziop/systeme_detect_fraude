@@ -39,7 +39,7 @@ app = FastAPI(
 # Configuration CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En développement, autoriser toutes les origines
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,6 +62,7 @@ class TransactionCreate(BaseModel):
     merchant: str
     category: Optional[str] = None
     description: Optional[str] = None
+    timestamp: Optional[str] = None
 
 class TransactionResponse(BaseModel):
     """Réponse après traitement d'une transaction"""
@@ -74,19 +75,14 @@ class TransactionResponse(BaseModel):
     fraud_score: Optional[float] = None
     timestamp: str
 
-# Utiliser la base de données au lieu du stockage en mémoire
-
-def generate_features(amount: float) -> dict:
+def generate_features(amount: float, merchant: str, category: str) -> dict:
     """
     Génère des features synthétiques pour la transaction
-    Dans un vrai système, ces features seraient calculées à partir des données historiques
     """
-    np.random.seed(int(amount * 1000) % 10000)
+    np.random.seed(int(amount * 1000) % 10000 + len(merchant))
     
-    # Générer des features V1-V28 (simulation)
     features = {}
     for i in range(1, 29):
-        # Simuler des distributions réalistes
         if i in [1, 2, 3, 4, 5]:
             features[f'V{i}'] = float(np.random.normal(0, 1))
         elif i in [6, 7, 8, 9, 10]:
@@ -94,56 +90,54 @@ def generate_features(amount: float) -> dict:
         else:
             features[f'V{i}'] = float(np.random.normal(0, 1.5))
     
-    # Ajuster certaines features en fonction du montant
+    # Simuler des patterns de fraude pour test
     if amount > 1000:
         features['V11'] = float(np.random.normal(2, 1))
         features['V12'] = float(np.random.normal(-1, 1))
+        features['V14'] = float(np.random.normal(-2, 0.8))
+    
+    if amount > 5000:  # Montant très élevé = plus suspect
+        features['V4'] = float(np.random.normal(3, 1))
+        features['V11'] = float(np.random.normal(3.5, 0.5))
     
     features['Amount'] = float(amount)
     
     return features
 
-async def verify_user_token(user_id: str) -> bool:
+async def detect_fraud(transaction_data: dict) -> dict:
     """
-    Vérifie le token utilisateur avec le service d'authentification
-    """
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{AUTH_SERVICE_URL}/api/users/{user_id}/verify",
-                timeout=5.0
-            )
-            return response.status_code == 200
-    except Exception:
-        # En mode développement, accepter tous les utilisateurs
-        return True
-
-async def detect_fraud(transaction_id: str, features: dict) -> dict:
-    """
-    Envoie la transaction au service de détection de fraude
+    Envoie la transaction au service ML pour détection de fraude
+    ✅ CORRECTION: Utilise le bon endpoint /predict avec les bonnes données
     """
     try:
+        print(f"🔍 Envoi vers ML Service: {FRAUD_DETECTION_SERVICE_URL}/predict")
+        print(f"📊 Données: amount={transaction_data.get('amount')}, merchant={transaction_data.get('merchant')}")
+        
         async with httpx.AsyncClient() as client:
-            payload = {
-                "transaction_id": transaction_id,
-                "features": features
-            }
+            # ✅ CORRECTION: Envoyer directement les données de transaction
             response = await client.post(
-                f"{FRAUD_DETECTION_SERVICE_URL}/detect",
-                json=payload,
+                f"{FRAUD_DETECTION_SERVICE_URL}/predict",  # ✅ BON ENDPOINT
+                json=transaction_data,  # ✅ BONNES DONNÉES
                 timeout=10.0
             )
             
+            print(f"📡 Réponse ML (status={response.status_code}): {response.text}")
+            
             if response.status_code == 200:
-                return response.json()
+                result = response.json()
+                print(f"✅ Résultat ML: is_fraud={result.get('is_fraud')}, score={result.get('fraud_score')}")
+                return result
             else:
+                print(f"❌ Erreur ML Service: {response.status_code}")
                 return {
                     "is_fraud": False,
                     "fraud_score": 0.0,
                     "confidence": 0.0
                 }
     except Exception as e:
-        print(f"Erreur lors de la détection de fraude: {e}")
+        print(f"❌ Exception lors de la détection de fraude: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             "is_fraud": False,
             "fraud_score": 0.0,
@@ -155,7 +149,9 @@ async def root():
     """Endpoint de santé"""
     return {
         "service": "Transaction Service",
-        "status": "running"
+        "status": "running",
+        "ml_service": FRAUD_DETECTION_SERVICE_URL,
+        "celery_enabled": CELERY_AVAILABLE
     }
 
 @app.get("/health")
@@ -166,13 +162,21 @@ async def health_check():
 @app.post("/transactions", response_model=TransactionResponse)
 async def create_transaction(transaction: TransactionCreate, db: Session = Depends(get_db)):
     """
-    Crée une nouvelle transaction et la vérifie pour fraude (asynchrone avec Celery)
+    Crée une nouvelle transaction et la vérifie pour fraude
     """
+    print(f"\n🆕 Nouvelle transaction: {transaction.amount}€ chez {transaction.merchant}")
+    
     # Générer un ID de transaction
     transaction_id = f"TXN_{datetime.now().strftime('%Y%m%d%H%M%S')}_{random.randint(1000, 9999)}"
     
-    # Générer les features pour le modèle ML
-    features = generate_features(transaction.amount)
+    # ✅ CORRECTION: Préparer les données pour le ML
+    transaction_data = {
+        "amount": transaction.amount,
+        "merchant": transaction.merchant,
+        "category": transaction.category or "Other",
+        "user_id": transaction.user_id,
+        "timestamp": transaction.timestamp or datetime.now().isoformat()
+    }
     
     # Créer la transaction en base avec statut PENDING
     db_transaction = Transaction(
@@ -188,49 +192,35 @@ async def create_transaction(transaction: TransactionCreate, db: Session = Depen
     db.commit()
     db.refresh(db_transaction)
     
-    # Vérification de fraude (asynchrone avec Celery si disponible, sinon synchrone)
-    if CELERY_AVAILABLE:
-        # Utiliser Celery pour traitement asynchrone
-        task = check_fraud_async.delay(transaction_id, features)
-        try:
-            fraud_result = task.get(timeout=10)
-        except Exception as e:
-            print(f"Erreur Celery: {e}")
-            fraud_result = await detect_fraud(transaction_id, features)
-    else:
-        # Vérification synchrone directe
-        fraud_result = await detect_fraud(transaction_id, features)
+    print(f"💾 Transaction sauvegardée: {transaction_id}")
+    
+    # ✅ Vérification de fraude avec le ML
+    print(f"🤖 Appel du service ML...")
+    fraud_result = await detect_fraud(transaction_data)
     
     # Mettre à jour la transaction avec le résultat
-    if fraud_result:
-        db_transaction.status = 'BLOCKED' if fraud_result.get("is_fraud", False) else 'APPROVED'
-        db_transaction.is_fraud = fraud_result.get("is_fraud", False)
-        db_transaction.fraud_score = fraud_result.get("fraud_score", 0.0)
-        db_transaction.confidence = fraud_result.get("confidence", 0.0)
-        db.commit()
-        
-        return TransactionResponse(
-            transaction_id=transaction_id,
-            user_id=transaction.user_id,
-            amount=transaction.amount,
-            merchant=transaction.merchant,
-            status=db_transaction.status,
-            is_fraud=db_transaction.is_fraud,
-            fraud_score=db_transaction.fraud_score,
-            timestamp=db_transaction.created_at.isoformat()
-        )
-    else:
-        # En cas d'erreur, garder PENDING
-        return TransactionResponse(
-            transaction_id=transaction_id,
-            user_id=transaction.user_id,
-            amount=transaction.amount,
-            merchant=transaction.merchant,
-            status='PENDING',
-            is_fraud=None,
-            fraud_score=None,
-            timestamp=db_transaction.created_at.isoformat()
-        )
+    is_fraud = fraud_result.get("is_fraud", False)
+    fraud_score = fraud_result.get("fraud_score", 0.0)
+    
+    db_transaction.status = 'BLOCKED' if is_fraud else 'APPROVED'
+    db_transaction.is_fraud = is_fraud
+    db_transaction.fraud_score = fraud_score
+    db_transaction.confidence = fraud_result.get("confidence", 0.0)
+    db.commit()
+    
+    status_emoji = "🚫" if is_fraud else "✅"
+    print(f"{status_emoji} Transaction {db_transaction.status}: is_fraud={is_fraud}, score={fraud_score:.2%}")
+    
+    return TransactionResponse(
+        transaction_id=transaction_id,
+        user_id=transaction.user_id,
+        amount=transaction.amount,
+        merchant=transaction.merchant,
+        status=db_transaction.status,
+        is_fraud=db_transaction.is_fraud,
+        fraud_score=db_transaction.fraud_score,
+        timestamp=db_transaction.created_at.isoformat()
+    )
 
 @app.get("/transactions/{transaction_id}")
 async def get_transaction(transaction_id: str, db: Session = Depends(get_db)):
@@ -249,7 +239,10 @@ async def list_transactions(skip: int = 0, limit: int = 100, db: Session = Depen
     Liste les transactions
     """
     total = db.query(Transaction).count()
-    transactions = db.query(Transaction).offset(skip).limit(limit).all()
+    transactions = db.query(Transaction).order_by(Transaction.created_at.desc()).offset(skip).limit(limit).all()
+    
+    print(f"📋 Liste de {len(transactions)} transactions (total: {total})")
+    
     return {
         "total": total,
         "transactions": [tx.to_dict() for tx in transactions]
