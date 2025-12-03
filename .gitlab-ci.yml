@@ -9,7 +9,6 @@ stages:
 variables:
   # Variables Docker
   DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: "/certs"
   # Registry GitLab (sera automatiquement défini par GitLab)
   CI_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE
   # Python version
@@ -247,6 +246,8 @@ deploy:k8s:
   image: alpine:3.18
   rules:
     - when: never
+  script:
+    - echo "Kubernetes deploy job est désactivé (pas de k8s)."
   environment:
     name: production
     url: http://auth-service.example.com
