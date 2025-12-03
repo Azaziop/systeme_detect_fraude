@@ -175,11 +175,11 @@ deploy:k8s:
   image: alpine:3.18
   before_script:
     - apk add --no-cache curl bash
-    - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    - curl -fsSLO https://dl.k8s.io/release/v1.27.0/bin/linux/amd64/kubectl
     - chmod +x kubectl
     - mv kubectl /usr/local/bin/
     - if [ -n "$KUBE_CONFIG" ]; then echo "$KUBE_CONFIG" | base64 -d > /tmp/kubeconfig; export KUBECONFIG="/tmp/kubeconfig"; fi
-    - kubectl version --client || true
+    - kubectl version --client || echo "kubectl installed but no cluster access (expected if KUBE_CONFIG not set)"
   script:
     - |
       if [ -z "$KUBE_CONFIG" ]; then
