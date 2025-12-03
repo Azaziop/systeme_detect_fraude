@@ -4,6 +4,7 @@
 stages:
   - test
   - deploy
+  - smoke
 
 variables:
   # Variables Docker
@@ -172,6 +173,67 @@ deploy:fraud-detection-service:
     - main
     - develop
     - tags
+
+# ============================================
+# STAGE: SMOKE (validation basique des images Docker)
+# ============================================
+
+smoke:auth-service:
+  stage: smoke
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker pull $CI_REGISTRY_IMAGE/auth-service:latest
+    - docker rm -f auth-smoke || true
+    - docker run -d --name auth-smoke $CI_REGISTRY_IMAGE/auth-service:latest
+    - sleep 8
+    - docker ps --filter "name=auth-smoke" --format '{{.Status}}'
+    - docker logs --tail=50 auth-smoke || true
+    - docker rm -f auth-smoke
+  only:
+    - main
+    - develop
+
+smoke:transaction-service:
+  stage: smoke
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker pull $CI_REGISTRY_IMAGE/transaction-service:latest
+    - docker rm -f tx-smoke || true
+    - docker run -d --name tx-smoke $CI_REGISTRY_IMAGE/transaction-service:latest
+    - sleep 8
+    - docker ps --filter "name=tx-smoke" --format '{{.Status}}'
+    - docker logs --tail=50 tx-smoke || true
+    - docker rm -f tx-smoke
+  only:
+    - main
+    - develop
+
+smoke:fraud-detection-service:
+  stage: smoke
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker pull $CI_REGISTRY_IMAGE/fraud-detection-service:latest
+    - docker rm -f fraud-smoke || true
+    - docker run -d --name fraud-smoke $CI_REGISTRY_IMAGE/fraud-detection-service:latest
+    - sleep 8
+    - docker ps --filter "name=fraud-smoke" --format '{{.Status}}'
+    - docker logs --tail=50 fraud-smoke || true
+    - docker rm -f fraud-smoke
+  only:
+    - main
+    - develop
 
 # Deploy to Kubernetes cluster (requires CI variable `KUBE_CONFIG` - base64 of kubeconfig)
 deploy:k8s:
