@@ -2,9 +2,10 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Installer les dépendances système
+# Installer les dépendances système (gcc + libpq-dev pour psycopg2-binary compatibility)
 RUN apt-get update && apt-get install -y \
     gcc \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copier les requirements
