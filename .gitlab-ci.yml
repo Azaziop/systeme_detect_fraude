@@ -244,10 +244,29 @@ smoke:fraud-detection-service:
 deploy:k8s:
   stage: deploy
   image: alpine:3.18
-  rules:
-    - when: never
+  before_script:
+    - apk add --no-cache curl bash
+    - curl -fsSLO https://dl.k8s.io/release/v1.27.0/bin/linux/amd64/kubectl
+    - chmod +x kubectl
+    - mv kubectl /usr/local/bin/
+    - if [ -n "$KUBE_CONFIG" ]; then echo "$KUBE_CONFIG" | base64 -d > /tmp/kubeconfig; export KUBECONFIG="/tmp/kubeconfig"; fi
+    - kubectl version --client || echo "kubectl installed but no cluster access (expected if KUBE_CONFIG not set)"
   script:
-    - echo "Kubernetes deploy job est désactivé (pas de k8s)."
+    - |
+      if [ -z "$KUBE_CONFIG" ]; then
+        echo "KUBE_CONFIG variable not set. Skipping k8s deploy."; exit 0;
+      fi
+    # Replace image placeholders in k8s manifests to point to GitLab registry
+    - sed -i "s|fraud-detection/auth-service:latest|$CI_REGISTRY_IMAGE/auth-service:latest|g" k8s/*.yaml || true
+    - sed -i "s|fraud-detection/transaction-service:latest|$CI_REGISTRY_IMAGE/transaction-service:latest|g" k8s/*.yaml || true
+    - sed -i "s|fraud-detection/fraud-detection-service:latest|$CI_REGISTRY_IMAGE/fraud-detection-service:latest|g" k8s/*.yaml || true
+    - kubectl create namespace fraud-detection || true
+    - kubectl apply -f k8s/ --namespace=fraud-detection
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $KUBE_CONFIG'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
   environment:
     name: production
     url: http://auth-service.example.com
