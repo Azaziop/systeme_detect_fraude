@@ -67,7 +67,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'auth_service.wsgi.application'
 
 # Database
-# Utilise PostgreSQL si disponible, sinon SQLite pour développement
+# Configuration PostgreSQL uniquement
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -76,17 +76,11 @@ DATABASES = {
         'PASSWORD': os.getenv('DB_PASSWORD', 'postgres'),
         'HOST': os.getenv('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', '5432'),
-    }
-}
-
-# Fallback vers SQLite si PostgreSQL n'est pas disponible
-if os.getenv('USE_SQLITE', 'False') == 'True' or not os.getenv('DB_HOST'):
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {
+            'connect_timeout': 10,
         }
     }
+}
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

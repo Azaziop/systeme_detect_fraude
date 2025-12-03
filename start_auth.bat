@@ -4,28 +4,31 @@ echo  Demarrage Auth Service (Django)
 echo ========================================
 echo.
 
-cd auth_service
-
-if not exist "venv" (
-    echo [ERREUR] Environnement virtuel non trouve.
-    echo Executez d'abord: setup_local.bat
-    pause
-    exit /b 1
+REM Activer l'environnement virtuel à la racine du projet
+if exist "..\venv\Scripts\activate.bat" (
+    call ..\venv\Scripts\activate.bat
+) else if exist "venv\Scripts\activate.bat" (
+    call venv\Scripts\activate.bat
+) else (
+    echo [ATTENTION] Environnement virtuel non trouve.
+    echo Tentative avec Python systeme...
 )
 
-call venv\Scripts\activate.bat
+cd auth_service
 
-REM Configurer les variables d'environnement
+REM Configurer les variables d'environnement PostgreSQL
 if "%DB_HOST%"=="" set DB_HOST=localhost
 if "%DB_NAME%"=="" set DB_NAME=fraud_detection
 if "%DB_USER%"=="" set DB_USER=postgres
 if "%DB_PASSWORD%"=="" set DB_PASSWORD=postgres
-if "%USE_SQLITE%"=="" set USE_SQLITE=True
+if "%DB_PORT%"=="" set DB_PORT=5432
 if "%REDIS_URL%"=="" set REDIS_URL=redis://localhost:6379/1
 
-echo Configuration:
+echo Configuration PostgreSQL:
 echo   DB_HOST=%DB_HOST%
-echo   USE_SQLITE=%USE_SQLITE%
+echo   DB_NAME=%DB_NAME%
+echo   DB_USER=%DB_USER%
+echo   DB_PORT=%DB_PORT%
 echo.
 
 echo Application des migrations...

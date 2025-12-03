@@ -41,10 +41,6 @@ model_type = None  # 'random_forest' ou 'isolation_forest'
 # Par défaut 0.03 (au lieu de 0.5) pour plus de sensibilité
 FRAUD_THRESHOLD = float(os.getenv("FRAUD_THRESHOLD", "0.03"))
 
-# Seuil de décision pour la détection de fraude (ajustable)
-# Par défaut 0.5, mais peut être abaissé pour plus de sensibilité
-FRAUD_THRESHOLD = float(os.getenv("FRAUD_THRESHOLD", "0.03"))  # Seuil plus bas pour détecter plus de fraudes
-
 class TransactionFeatures(BaseModel):
     """Modèle pour les features d'une transaction"""
     # Time a été supprimé du modèle - le modèle n'utilise plus cette feature

@@ -56,4 +56,3 @@ class LoginSerializer(serializers.Serializer):
         else:
             raise serializers.ValidationError('Username et password requis')
         return attrs
-

@@ -4,8 +4,9 @@ djangorestframework-simplejwt==5.3.0
 django-cors-headers==4.3.1
 drf-spectacular==0.26.5
 
-# Optionnel - pour PostgreSQL (nécessite Visual C++ Build Tools)
-psycopg2-binary==2.9.9
+# Optionnel - pour PostgreSQL
+# psycopg2-binary>=2.9.9  # Nécessite Visual C++ Build Tools sur Windows
+psycopg[binary]>=3.1.0  # Version moderne, mieux supportée
 
 # Optionnel - pour Redis cache
 # django-redis==5.4.0

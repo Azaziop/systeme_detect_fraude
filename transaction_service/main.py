@@ -80,11 +80,13 @@ def generate_features(amount: float) -> dict:
     """
     Génère des features synthétiques pour la transaction
     Dans un vrai système, ces features seraient calculées à partir des données historiques
+    Note: Time a été supprimé du modèle, donc on ne génère plus cette feature
     """
     np.random.seed(int(amount * 1000) % 10000)
     
-    # Générer des features V1-V28 (simulation)
     features = {}
+    
+    # Générer des features V1-V28 (simulation)
     for i in range(1, 29):
         # Simuler des distributions réalistes
         if i in [1, 2, 3, 4, 5]:

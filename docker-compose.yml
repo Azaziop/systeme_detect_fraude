@@ -77,12 +77,18 @@ services:
     environment:
       - FRAUD_DETECTION_SERVICE_URL=http://fraud-detection-service:8002
       - AUTH_SERVICE_URL=http://auth-service:8000
-      - DATABASE_URL=sqlite:///./transactions.db
+      - DB_NAME=fraud_detection
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
       - REDIS_URL=redis://redis:6379/0
     depends_on:
-      - fraud-detection-service
-      - auth-service
-      - redis
+      postgres:
+        condition: service_healthy
+      fraud-detection-service:
+      auth-service:
+      redis:
     networks:
       - fraud-detection-network
     healthcheck:
@@ -102,10 +108,16 @@ services:
     environment:
       - FRAUD_DETECTION_SERVICE_URL=http://fraud-detection-service:8002
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=sqlite:///./transactions.db
+      - DB_NAME=fraud_detection
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
     depends_on:
-      - redis
-      - fraud-detection-service
+      postgres:
+        condition: service_healthy
+      redis:
+      fraud-detection-service:
     networks:
       - fraud-detection-network
     restart: unless-stopped
