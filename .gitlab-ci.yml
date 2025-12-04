@@ -167,11 +167,12 @@ deploy:local:
     - python -m venv venv --clear
     - Write-Host "✓ venv créé" -ForegroundColor Green
     - "& .\\venv\\Scripts\\Activate.ps1"
-    - Write-Host "📦 Installation des dépendances..." -ForegroundColor Cyan
+    - Write-Host "📦 Mise à jour pip..." -ForegroundColor Cyan
     - python -m pip install --upgrade pip --quiet
-    - pip install -r auth_service/requirements.txt --quiet
-    - pip install -r transaction_service/requirements.txt --quiet
-    - pip install -r fraud_detection_service/requirements.txt --quiet
+    - Write-Host "📦 Installation des dépendances..." -ForegroundColor Cyan
+    - python -m pip install -r auth_service/requirements.txt --quiet
+    - python -m pip install -r transaction_service/requirements.txt --quiet
+    - python -m pip install -r fraud_detection_service/requirements.txt --quiet
     - Write-Host "🗄️ Migrations Django..." -ForegroundColor Cyan
     - cd auth_service; python manage.py migrate --noinput; cd ..
     - Write-Host "🛑 Arrêt dos serviços..." -ForegroundColor Cyan
