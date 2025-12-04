@@ -14,8 +14,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copier le code du service
 COPY fraud_detection_service/main.py .
 
-# Créer les répertoires pour les modèles (seront créés/téléchargés à l'exécution)
+# Créer les répertoires pour les modèles
 RUN mkdir -p /app/ml_model/models
+
+# Copier les modèles ML
+COPY ml_model/models/random_forest_model.pkl /app/ml_model/models/
 
 # Exposer le port
 EXPOSE 8002
