@@ -96,19 +96,9 @@ deploy:k8s:
     - chmod +x kubectl
     - mv kubectl /usr/local/bin/
   script:
-    - echo "Validating Kubernetes manifests..."
-    - echo "Validating Auth Service manifest..."
-    - kubectl apply -f k8s/auth-service-deployment.yaml --dry-run=client
-    - echo "Validating Transaction Service manifest..."
-    - kubectl apply -f k8s/transaction-service-deployment.yaml --dry-run=client
-    - echo "Validating Fraud Detection Service manifest..."
-    - kubectl apply -f k8s/fraud-detection-deployment.yaml --dry-run=client
-    - echo "Validating Frontend manifest..."
-    - kubectl apply -f k8s/frontend-deployment.yaml --dry-run=client
-    - echo "Validating PostgreSQL manifest..."
-    - kubectl apply -f k8s/postgres-deployment.yaml --dry-run=client
-    - echo "All Kubernetes manifests are valid!"
-    - echo "NOTE: Actual deployment to Kubernetes should be done locally with kubectl apply -f k8s"
+    - echo "Validating Kubernetes manifests"
+    - for file in k8s/*.yaml; do kubectl apply -f "$file" --dry-run=client && echo "✓ Validated $file"; done
+    - echo "All manifests validated successfully"
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: on_success
