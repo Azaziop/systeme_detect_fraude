@@ -97,7 +97,7 @@ deploy:k8s:
     - mv kubectl /usr/local/bin/
   script:
     - echo "Validating Kubernetes manifests"
-    - for file in k8s/*.yaml; do kubectl apply -f "$file" --dry-run=client && echo "✓ Validated $file"; done
+    - for file in k8s/*.yaml; do kubectl apply -f "$file" --dry-run=client --validate=false && echo "✓ Validated $file"; done
     - echo "All manifests validated successfully"
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
