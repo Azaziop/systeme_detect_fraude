@@ -292,13 +292,12 @@ deploy:k8s:
   after_script:
     - echo "Deployment summary:"
     - kubectl get all -n fraud-detection --no-headers | head -20
-  only:
-    - main
-    - develop
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
     - if: '$CI_COMMIT_BRANCH == "develop"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH == "AymenCasee"'
       when: manual
   needs:
     - job: deploy:auth-service
