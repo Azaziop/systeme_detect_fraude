@@ -19,8 +19,6 @@ variables:
 test:auth:
   stage: test
   image: python:3.9-slim
-  tags:
-    - docker
   services:
     - postgres:15-alpine
   variables:
@@ -51,8 +49,6 @@ test:auth:
 test:transaction:
   stage: test
   image: python:3.9-slim
-  tags:
-    - docker
   before_script:
     - pip install --upgrade pip
     - pip install -r transaction_service/requirements.txt
@@ -68,8 +64,6 @@ test:transaction:
 test:fraud-detection:
   stage: test
   image: python:3.9-slim
-  tags:
-    - docker
   before_script:
     - pip install --upgrade pip
     - pip install -r fraud_detection_service/requirements.txt
@@ -85,8 +79,6 @@ test:fraud-detection:
 test:ml-model:
   stage: test
   image: python:3.9-slim
-  tags:
-    - docker
   before_script:
     - pip install --upgrade pip
     - pip install -r ml_model/requirements.txt
@@ -106,8 +98,6 @@ test:ml-model:
 deploy:auth-service:
   stage: deploy
   image: python:3.9-slim
-  tags:
-    - docker
   before_script:
     - pip install --upgrade pip
     - pip install -r auth_service/requirements.txt
@@ -122,8 +112,6 @@ deploy:auth-service:
 deploy:transaction-service:
   stage: deploy
   image: python:3.9-slim
-  tags:
-    - docker
   before_script:
     - pip install --upgrade pip
     - pip install -r transaction_service/requirements.txt
@@ -137,8 +125,6 @@ deploy:transaction-service:
 deploy:fraud-detection-service:
   stage: deploy
   image: python:3.9-slim
-  tags:
-    - docker
   before_script:
     - pip install --upgrade pip
     - pip install -r fraud_detection_service/requirements.txt
@@ -152,8 +138,6 @@ deploy:fraud-detection-service:
 deploy:k8s:
   stage: deploy
   image: bitnami/kubectl:1.27
-  tags:
-    - docker
   script:
     - echo "Checking Kubernetes connectivity..."
     - kubectl cluster-info || exit 0
