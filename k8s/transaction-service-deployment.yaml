@@ -22,6 +22,8 @@ spec:
         ports:
         - containerPort: 8001
         env:
+        - name: DATABASE_URL
+          value: "postgresql://postgres:postgres123@postgres:5432/fraud_detection"
         - name: FRAUD_DETECTION_SERVICE_URL
           valueFrom:
             configMapKeyRef:

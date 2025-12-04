@@ -2,15 +2,20 @@
 
 stages:
   - test
+  - build
   - deploy
   - smoke
 
 variables:
   DOCKER_DRIVER: overlay2
-  CI_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE
   PYTHON_VERSION: "3.9"
   DOCKER_HOST: tcp://docker:2375
   DOCKER_TLS_CERTDIR: ""
+  # Image tags
+  AUTH_IMAGE: fraud-detection-auth:latest
+  TRANSACTION_IMAGE: fraud-detection-transaction:latest
+  FRAUD_IMAGE: fraud-detection-ml:latest
+  FRONTEND_IMAGE: fraud-detection-frontend:latest
 
 # ============================================
 # STAGE: TEST
@@ -92,7 +97,124 @@ test:ml-model:
     - merge_requests
 
 # ============================================
+# STAGE: BUILD DOCKER IMAGES
+# ============================================
+
+build:docker-images:
+  stage: build
+  tags:
+    - windows
+    - local
+    - shell
+  script:
+    - Write-Host "🐳 Construction des images Docker..." -ForegroundColor Cyan
+    - Write-Host ""
+    - Write-Host "📦 1/4 Building Auth Service..." -ForegroundColor Yellow
+    - docker build -t $env:AUTH_IMAGE -f auth_service/Dockerfile .
+    - Write-Host "✓ Auth Service image built" -ForegroundColor Green
+    - Write-Host ""
+    - Write-Host "📦 2/4 Building Transaction Service..." -ForegroundColor Yellow
+    - docker build -t $env:TRANSACTION_IMAGE -f transaction_service/Dockerfile .
+    - Write-Host "✓ Transaction Service image built" -ForegroundColor Green
+    - Write-Host ""
+    - Write-Host "📦 3/4 Building Fraud Detection Service..." -ForegroundColor Yellow
+    - docker build -t $env:FRAUD_IMAGE -f fraud_detection_service/Dockerfile .
+    - Write-Host "✓ Fraud Detection Service image built" -ForegroundColor Green
+    - Write-Host ""
+    - Write-Host "📦 4/4 Building Frontend..." -ForegroundColor Yellow
+    - docker build -t $env:FRONTEND_IMAGE -f frontend/Dockerfile .
+    - Write-Host "✓ Frontend image built" -ForegroundColor Green
+    - Write-Host ""
+    - Write-Host "🏷️ Tagging images for Kubernetes..." -ForegroundColor Cyan
+    - docker tag $env:AUTH_IMAGE systeme_detect_fraude-auth-service:latest
+    - docker tag $env:TRANSACTION_IMAGE systeme_detect_fraude-transaction-service:latest
+    - docker tag $env:FRAUD_IMAGE systeme_detect_fraude-fraud-detection-service:latest
+    - docker tag $env:FRONTEND_IMAGE systeme_detect_fraude-frontend:latest
+    - Write-Host "✓ All images tagged" -ForegroundColor Green
+    - Write-Host ""
+    - Write-Host "📋 Available images:" -ForegroundColor Cyan
+    - docker images | Select-String "fraud-detection|systeme_detect_fraude"
+    - Write-Host ""
+    - Write-Host "✅ Build completed successfully!" -ForegroundColor Green
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+  artifacts:
+    reports:
+      dotenv: build.env
+  allow_failure: false
+
+# ============================================
 # STAGE: DEPLOY
+# ============================================
+
+deploy:kubernetes:
+  stage: deploy
+  tags:
+    - windows
+    - local
+    - shell
+  needs:
+    - build:docker-images
+  script:
+    - Write-Host "☸️ Déploiement sur Kubernetes..." -ForegroundColor Cyan
+    - Write-Host ""
+    - Write-Host "🔍 Vérification du cluster Kubernetes..." -ForegroundColor Yellow
+    - kubectl cluster-info
+    - Write-Host ""
+    - Write-Host "📝 Application des manifestes Kubernetes..." -ForegroundColor Yellow
+    - Write-Host "  → Namespace..." -ForegroundColor Gray
+    - kubectl apply -f k8s/namespace.yaml
+    - Write-Host "  → Secrets..." -ForegroundColor Gray
+    - kubectl apply -f k8s/secrets.yaml
+    - Write-Host "  → ConfigMap..." -ForegroundColor Gray
+    - kubectl apply -f k8s/configmap.yaml
+    - Write-Host "  → PostgreSQL..." -ForegroundColor Gray
+    - kubectl apply -f k8s/postgres-deployment.yaml
+    - Write-Host "  → Auth Service..." -ForegroundColor Gray
+    - kubectl apply -f k8s/auth-service-deployment.yaml
+    - Write-Host "  → Transaction Service..." -ForegroundColor Gray
+    - kubectl apply -f k8s/transaction-service-deployment.yaml
+    - Write-Host "  → Fraud Detection Service..." -ForegroundColor Gray
+    - kubectl apply -f k8s/fraud-detection-service-deployment.yaml
+    - Write-Host "  → Frontend..." -ForegroundColor Gray
+    - kubectl apply -f k8s/frontend-deployment.yaml
+    - Write-Host "✓ Tous les manifestes appliqués" -ForegroundColor Green
+    - Write-Host ""
+    - Write-Host "⏳ Attente du déploiement (30s)..." -ForegroundColor Yellow
+    - Start-Sleep -Seconds 30
+    - Write-Host ""
+    - Write-Host "📊 État des pods:" -ForegroundColor Cyan
+    - kubectl get pods -n fraud-detection
+    - Write-Host ""
+    - Write-Host "🔄 Vérification du rollout..." -ForegroundColor Yellow
+    - kubectl rollout status deployment/auth-service -n fraud-detection --timeout=120s
+    - kubectl rollout status deployment/transaction-service -n fraud-detection --timeout=120s
+    - kubectl rollout status deployment/fraud-detection-service -n fraud-detection --timeout=120s
+    - kubectl rollout status deployment/frontend -n fraud-detection --timeout=120s
+    - Write-Host ""
+    - Write-Host "🌐 Services disponibles:" -ForegroundColor Cyan
+    - kubectl get svc -n fraud-detection
+    - Write-Host ""
+    - Write-Host "✅ Déploiement Kubernetes terminé!" -ForegroundColor Green
+    - Write-Host ""
+    - Write-Host "🔗 Pour accéder aux services, utilisez:" -ForegroundColor Yellow
+    - Write-Host "  kubectl port-forward svc/auth-service 8000:8000 -n fraud-detection" -ForegroundColor Gray
+    - Write-Host "  kubectl port-forward svc/transaction-service 8001:8001 -n fraud-detection" -ForegroundColor Gray
+    - Write-Host "  kubectl port-forward svc/fraud-detection-service 8002:8002 -n fraud-detection" -ForegroundColor Gray
+    - Write-Host "  kubectl port-forward svc/frontend-service 3000:80 -n fraud-detection" -ForegroundColor Gray
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+  environment:
+    name: kubernetes-production
+    url: http://localhost:3000
+    kubernetes:
+      namespace: fraud-detection
+  allow_failure: false
+
+# ============================================
+# STAGE: DEPLOY (Local - kept for backward compatibility)
 # ============================================
 
 deploy:k8s:
@@ -152,9 +274,80 @@ deploy:local:
     - try { Invoke-WebRequest -Uri "http://localhost:8002/health" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Fraud Detection (8002) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Fraud Detection (8002) erro" -ForegroundColor Yellow }
     - Write-Host "`n🎉 Deployment concluído!" -ForegroundColor Green
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
       when: on_success
   environment:
     name: local-development
     url: http://localhost:8000
   allow_failure: false
+
+# ============================================
+# STAGE: SMOKE TESTS
+# ============================================
+
+smoke:test-services:
+  stage: smoke
+  tags:
+    - windows
+    - local
+    - shell
+  needs:
+    - deploy:kubernetes
+  script:
+    - Write-Host "🧪 Tests de fumée des services..." -ForegroundColor Cyan
+    - Write-Host ""
+    - Write-Host "🔗 Démarrage des port-forwards..." -ForegroundColor Yellow
+    - $pf1 = Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList "-Command", "kubectl port-forward svc/auth-service 8000:8000 -n fraud-detection"
+    - $pf2 = Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList "-Command", "kubectl port-forward svc/transaction-service 8001:8001 -n fraud-detection"
+    - $pf3 = Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList "-Command", "kubectl port-forward svc/fraud-detection-service 8002:8002 -n fraud-detection"
+    - $pf4 = Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList "-Command", "kubectl port-forward svc/frontend-service 3000:80 -n fraud-detection"
+    - Write-Host "⏳ Attente de l'initialisation (10s)..." -ForegroundColor Yellow
+    - Start-Sleep -Seconds 10
+    - Write-Host ""
+    - Write-Host "✅ Test des endpoints..." -ForegroundColor Cyan
+    - $allPassed = $true
+    - try { 
+        $response = Invoke-WebRequest -Uri "http://localhost:8000" -TimeoutSec 5 -UseBasicParsing
+        Write-Host "  ✓ Auth Service (8000) - Status $($response.StatusCode)" -ForegroundColor Green
+      } catch { 
+        Write-Host "  ✗ Auth Service (8000) - Erreur" -ForegroundColor Red
+        $allPassed = $false
+      }
+    - try { 
+        $response = Invoke-WebRequest -Uri "http://localhost:8001/health" -TimeoutSec 5 -UseBasicParsing
+        Write-Host "  ✓ Transaction Service (8001) - Status $($response.StatusCode)" -ForegroundColor Green
+      } catch { 
+        Write-Host "  ✗ Transaction Service (8001) - Erreur" -ForegroundColor Red
+        $allPassed = $false
+      }
+    - try { 
+        $response = Invoke-WebRequest -Uri "http://localhost:8002/health" -TimeoutSec 5 -UseBasicParsing
+        Write-Host "  ✓ Fraud Detection Service (8002) - Status $($response.StatusCode)" -ForegroundColor Green
+      } catch { 
+        Write-Host "  ✗ Fraud Detection Service (8002) - Erreur" -ForegroundColor Red
+        $allPassed = $false
+      }
+    - try { 
+        $response = Invoke-WebRequest -Uri "http://localhost:3000" -TimeoutSec 5 -UseBasicParsing
+        Write-Host "  ✓ Frontend (3000) - Status $($response.StatusCode)" -ForegroundColor Green
+      } catch { 
+        Write-Host "  ✗ Frontend (3000) - Erreur" -ForegroundColor Red
+        $allPassed = $false
+      }
+    - Write-Host ""
+    - Write-Host "🧹 Nettoyage des port-forwards..." -ForegroundColor Yellow
+    - Stop-Process -Id $pf1.Id -Force -ErrorAction SilentlyContinue
+    - Stop-Process -Id $pf2.Id -Force -ErrorAction SilentlyContinue
+    - Stop-Process -Id $pf3.Id -Force -ErrorAction SilentlyContinue
+    - Stop-Process -Id $pf4.Id -Force -ErrorAction SilentlyContinue
+    - Write-Host ""
+    - if ($allPassed) {
+        Write-Host "✅ Tous les tests de fumée ont réussi!" -ForegroundColor Green
+      } else {
+        Write-Host "❌ Certains tests ont échoué" -ForegroundColor Red
+        exit 1
+      }
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+  allow_failure: true
