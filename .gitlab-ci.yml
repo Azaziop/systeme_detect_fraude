@@ -74,7 +74,7 @@ build:docker-images:
     - echo "Building Docker images..."
     - docker build -f auth_service/Dockerfile -t fraud-detection-auth:latest auth_service
     - docker build -f transaction_service/Dockerfile -t fraud-detection-transaction:latest transaction_service
-    - docker build -f fraud_detection_service/Dockerfile -t fraud-detection-ml:latest fraud_detection_service
+    - docker build -f fraud_detection_service/Dockerfile -t fraud-detection-ml:latest .
     - docker build -f frontend/Dockerfile -t fraud-detection-frontend:latest frontend
     - echo "Docker images built successfully"
     - docker images | grep fraud-detection

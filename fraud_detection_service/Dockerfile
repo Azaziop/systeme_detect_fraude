@@ -8,11 +8,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copier les requirements
-COPY requirements.txt .
+COPY fraud_detection_service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copier le code du service
-COPY main.py .
+COPY fraud_detection_service/main.py .
 
 # Copier les modeles ML
 COPY ml_model/models /app/ml_model/models
