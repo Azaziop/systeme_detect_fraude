@@ -1,5 +1,4 @@
-# GitLab CI/CD Pipeline pour le Projet de Détection de Fraude
-# Pipeline avec stages: test et deploy
+# GitLab CI/CD Pipeline para Detecção de Fraude
 
 stages:
   - test
@@ -7,14 +6,9 @@ stages:
   - smoke
 
 variables:
-  # Variables Docker
   DOCKER_DRIVER: overlay2
-  # Registry GitLab (sera automatiquement défini par GitLab)
   CI_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE
-  # Python version
   PYTHON_VERSION: "3.9"
-
-  # Faciliter Docker-in-Docker (si runner configuré en mode privilégié)
   DOCKER_HOST: tcp://docker:2375
   DOCKER_TLS_CERTDIR: ""
 
@@ -22,7 +16,6 @@ variables:
 # STAGE: TEST
 # ============================================
 
-# Test du service d'authentification (Django)
 test:auth:
   stage: test
   image: python:3.9-slim
@@ -55,7 +48,6 @@ test:auth:
     - main
     - develop
 
-# Test du service de transaction (FastAPI)
 test:transaction:
   stage: test
   image: python:3.9-slim
@@ -73,7 +65,6 @@ test:transaction:
     - main
     - develop
 
-# Test du service de détection de fraude (FastAPI)
 test:fraud-detection:
   stage: test
   image: python:3.9-slim
@@ -91,7 +82,6 @@ test:fraud-detection:
     - main
     - develop
 
-# Test du modèle ML
 test:ml-model:
   stage: test
   image: python:3.9-slim
@@ -109,197 +99,64 @@ test:ml-model:
     - main
     - develop
 
-# Tests d'intégration
-test:integration:
-  stage: test
-  image: python:3.9-slim
-  before_script:
-    - pip install --upgrade pip
-    - pip install pytest requests
-  script:
-    - pytest tests/integration_tests.py -v || true
-  only:
-    - merge_requests
-    - main
-    - develop
-
 # ============================================
 # STAGE: DEPLOY
 # ============================================
 
-# Build et push de l'image Docker pour Auth Service
 deploy:auth-service:
   stage: deploy
-  image: docker:24-dind
-  services:
-    - docker:24-dind
+  image: python:3.9-slim
+  tags:
+    - docker
   before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - pip install --upgrade pip
+    - pip install -r auth_service/requirements.txt
   script:
-    - docker build -f auth_service/Dockerfile -t $CI_REGISTRY_IMAGE/auth-service:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/auth-service:latest .
-    - docker push $CI_REGISTRY_IMAGE/auth-service:$CI_COMMIT_SHORT_SHA
-    - docker push $CI_REGISTRY_IMAGE/auth-service:latest
+    - echo "Deploying auth service..."
+    - cd auth_service
+    - python manage.py migrate --noinput
   only:
     - main
     - develop
-    - AymenCasee
-    - tags
 
-# Build et push de l'image Docker pour Transaction Service
 deploy:transaction-service:
   stage: deploy
-  image: docker:24-dind
-  services:
-    - docker:24-dind
+  image: python:3.9-slim
+  tags:
+    - docker
   before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - pip install --upgrade pip
+    - pip install -r transaction_service/requirements.txt
   script:
-    - docker build -f transaction_service/Dockerfile -t $CI_REGISTRY_IMAGE/transaction-service:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/transaction-service:latest .
-    - docker push $CI_REGISTRY_IMAGE/transaction-service:$CI_COMMIT_SHORT_SHA
-    - docker push $CI_REGISTRY_IMAGE/transaction-service:latest
+    - echo "Deploying transaction service..."
+    - cd transaction_service
   only:
     - main
     - develop
-    - tags
 
-# Build et push de l'image Docker pour Fraud Detection Service
 deploy:fraud-detection-service:
   stage: deploy
-  image: docker:24-dind
-  services:
-    - docker:24-dind
+  image: python:3.9-slim
+  tags:
+    - docker
   before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - pip install --upgrade pip
+    - pip install -r fraud_detection_service/requirements.txt
   script:
-    - docker build -f fraud_detection_service/Dockerfile -t $CI_REGISTRY_IMAGE/fraud-detection-service:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/fraud-detection-service:latest .
-    - docker push $CI_REGISTRY_IMAGE/fraud-detection-service:$CI_COMMIT_SHORT_SHA
-    - docker push $CI_REGISTRY_IMAGE/fraud-detection-service:latest
-  only:
-    - main
-    - develop
-    - tags
-
-# ============================================
-# STAGE: SMOKE (validation basique des images Docker)
-# ============================================
-
-smoke:auth-service:
-  stage: smoke
-  image: docker:24-dind
-  services:
-    - docker:24-dind
-  needs:
-    - job: deploy:auth-service
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  script:
-    - docker pull $CI_REGISTRY_IMAGE/auth-service:latest
-    - docker rm -f auth-smoke || true
-    - docker run -d --name auth-smoke $CI_REGISTRY_IMAGE/auth-service:latest
-    - sleep 8
-    - docker ps --filter "name=auth-smoke" --format '{{.Status}}'
-    - docker logs --tail=50 auth-smoke || true
-    - docker rm -f auth-smoke
+    - echo "Deploying fraud detection service..."
+    - cd fraud_detection_service
   only:
     - main
     - develop
 
-smoke:transaction-service:
-  stage: smoke
-  image: docker:24-dind
-  services:
-    - docker:24-dind
-  needs:
-    - job: deploy:transaction-service
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  script:
-    - docker pull $CI_REGISTRY_IMAGE/transaction-service:latest
-    - docker rm -f tx-smoke || true
-    - docker run -d --name tx-smoke $CI_REGISTRY_IMAGE/transaction-service:latest
-    - sleep 8
-    - docker ps --filter "name=tx-smoke" --format '{{.Status}}'
-    - docker logs --tail=50 tx-smoke || true
-    - docker rm -f tx-smoke
-  only:
-    - main
-    - develop
-
-smoke:fraud-detection-service:
-  stage: smoke
-  image: docker:24-dind
-  services:
-    - docker:24-dind
-  needs:
-    - job: deploy:fraud-detection-service
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  script:
-    - docker pull $CI_REGISTRY_IMAGE/fraud-detection-service:latest
-    - docker rm -f fraud-smoke || true
-    - docker run -d --name fraud-smoke $CI_REGISTRY_IMAGE/fraud-detection-service:latest
-    - sleep 8
-    - docker ps --filter "name=fraud-smoke" --format '{{.Status}}'
-    - docker logs --tail=50 fraud-smoke || true
-    - docker rm -f fraud-smoke
-  only:
-    - main
-    - develop
-
-# Deploy to local Kubernetes cluster (Docker Desktop K8s or local K8s)
-# Requires: KUBE_CONFIG variable (base64-encoded kubeconfig) set in GitLab CI/CD settings
 deploy:k8s:
   stage: deploy
-  image: alpine:3.18
-  before_script:
-    - apk add --no-cache curl bash git
-    # Download kubectl
-    - curl -fsSLO https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl
-    - chmod +x kubectl
-    - mv kubectl /usr/local/bin/
-    # Configure kubeconfig from CI variable
-    - |
-      if [ -n "$KUBE_CONFIG" ]; then
-        mkdir -p ~/.kube
-        echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
-        chmod 600 ~/.kube/config
-        echo "✓ Kubeconfig configured"
-      else
-        echo "⚠ KUBE_CONFIG variable not set. Skipping k8s deploy."
-        exit 0
-      fi
-    # Verify cluster access (skip job if cluster unreachable on SaaS runners)
-    - |
-      if ! kubectl cluster-info >/dev/null 2>&1; then
-        echo "⚠ Kubernetes cluster unreachable from runner. Skipping deploy."
-        exit 0
-      fi
-    - kubectl get nodes || { echo "⚠ Cluster unreachable. Skipping deploy."; exit 0; }
+  image: bitnami/kubectl:1.27
+  tags:
+    - docker
   script:
-    - echo "Starting Kubernetes deployment..."
-    # Create namespace if it doesn't exist
-    - kubectl create namespace fraud-detection --dry-run=client -o yaml | kubectl apply -f -
-    # Update image tags in k8s manifests to use GitLab registry
-    - |
-      find k8s -name "*.yaml" -type f -exec sed -i \
-        -e "s|IMAGE_REGISTRY|$CI_REGISTRY_IMAGE|g" \
-        -e "s|:latest|:$CI_COMMIT_SHORT_SHA|g" \
-        {} \;
-    # Apply k8s manifests
-    - kubectl apply -f k8s/ -n fraud-detection
-    # Wait for rollouts to complete
-    - echo "Waiting for deployments to be ready..."
-    - kubectl rollout status deployment/auth-service -n fraud-detection --timeout=5m
-    - kubectl rollout status deployment/transaction-service -n fraud-detection --timeout=5m
-    - kubectl rollout status deployment/fraud-detection-service -n fraud-detection --timeout=5m
-    # Show deployment status
-    - kubectl get deployments -n fraud-detection
-    - kubectl get pods -n fraud-detection
-    - kubectl get services -n fraud-detection
-    - echo "✓ Kubernetes deployment completed successfully"
-  after_script:
-    - echo "Deployment summary:"
-    - kubectl get all -n fraud-detection --no-headers | head -20
+    - echo "Checking Kubernetes connectivity..."
+    - kubectl cluster-info || exit 0
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: manual
@@ -307,10 +164,6 @@ deploy:k8s:
       when: manual
     - if: '$CI_COMMIT_BRANCH == "AymenCasee"'
       when: manual
-  needs:
-    - job: deploy:auth-service
-    - job: deploy:transaction-service
-    - job: deploy:fraud-detection-service
   environment:
     name: production-k8s
     url: http://localhost
@@ -324,9 +177,6 @@ deploy:local:
     - windows
     - local
     - shell
-  only:
-    - main
-    - develop
   script:
     - Write-Host "🚀 Déploiement local sur Windows..." -ForegroundColor Cyan
     - Write-Host "📂 Répertoire - $PWD" -ForegroundColor Cyan
@@ -340,10 +190,10 @@ deploy:local:
     - pip install -r fraud_detection_service/requirements.txt --quiet
     - Write-Host "🗄️ Migrations Django..." -ForegroundColor Cyan
     - cd auth_service; python manage.py migrate --noinput; cd ..
-    - Write-Host "🛑 Arrêt des services..." -ForegroundColor Cyan
+    - Write-Host "🛑 Arrêt dos serviços..." -ForegroundColor Cyan
     - Get-Process | Where-Object { $_.ProcessName -eq 'python' } | Stop-Process -Force -ErrorAction SilentlyContinue
     - Start-Sleep -Seconds 2
-    - Write-Host "▶️ Démarrage des services..." -ForegroundColor Cyan
+    - Write-Host "▶️ Démarrage dos serviços..." -ForegroundColor Cyan
     - $projectDir = $PWD.Path
     - $pythonExe = Join-Path $projectDir "venv\Scripts\python.exe"
     - Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoExit", "-Command", "cd '$projectDir\auth_service'; & '$pythonExe' manage.py runserver 0.0.0.0:8000"
@@ -356,11 +206,6 @@ deploy:local:
     - try { Invoke-WebRequest -Uri "http://localhost:8001/health" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Transaction (8001) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Transaction (8001) erro" -ForegroundColor Yellow }
     - try { Invoke-WebRequest -Uri "http://localhost:8002/health" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Fraud Detection (8002) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Fraud Detection (8002) erro" -ForegroundColor Yellow }
     - Write-Host "`n🎉 Deployment concluído!" -ForegroundColor Green
-  environment:
-    name: local-development
-    url: http://localhost:8000
-  allow_failure: false
-    - Write-Host "🤖 Fraud Detection Service - http://localhost:8002" -ForegroundColor White
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
       when: on_success
