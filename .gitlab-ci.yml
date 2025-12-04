@@ -95,46 +95,6 @@ test:ml-model:
 # STAGE: DEPLOY
 # ============================================
 
-deploy:auth-service:
-  stage: deploy
-  image: python:3.9-slim
-  before_script:
-    - pip install --upgrade pip
-    - pip install -r auth_service/requirements.txt
-  script:
-    - echo "Deploying auth service..."
-    - cd auth_service
-    - python manage.py migrate --noinput
-  only:
-    - main
-    - develop
-
-deploy:transaction-service:
-  stage: deploy
-  image: python:3.9-slim
-  before_script:
-    - pip install --upgrade pip
-    - pip install -r transaction_service/requirements.txt
-  script:
-    - echo "Deploying transaction service..."
-    - cd transaction_service
-  only:
-    - main
-    - develop
-
-deploy:fraud-detection-service:
-  stage: deploy
-  image: python:3.9-slim
-  before_script:
-    - pip install --upgrade pip
-    - pip install -r fraud_detection_service/requirements.txt
-  script:
-    - echo "Deploying fraud detection service..."
-    - cd fraud_detection_service
-  only:
-    - main
-    - develop
-
 deploy:k8s:
   stage: deploy
   image: bitnami/kubectl:1.27
