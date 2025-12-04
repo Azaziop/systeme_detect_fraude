@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: fraud-detection
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: frontend-static
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: frontend-static
+        configMap:
+          name: frontend-static
+          items:
+          - key: index.html
+            path: index.html
+          - key: app.js
+            path: app.js
+          - key: style.css
+            path: style.css
+          - key: test_connection.html
+            path: test_connection.html
