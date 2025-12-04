@@ -134,6 +134,23 @@ deploy:verify:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: on_success
 
+deploy:pull-to-local:
+  stage: deploy
+  tags:
+    - local
+  script:
+    - echo "Pulling Docker images to local Docker Desktop..."
+    - docker pull $DOCKER_USERNAME/fraud-detection-auth:latest
+    - docker pull $DOCKER_USERNAME/fraud-detection-transaction:latest
+    - docker pull $DOCKER_USERNAME/fraud-detection-ml:latest
+    - docker pull $DOCKER_USERNAME/fraud-detection-frontend:latest
+    - echo "✅ All images pulled to local Docker Desktop"
+    - docker images | grep fraud-detection
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+  allow_failure: true
+
 # ============================================
 # STAGE: SMOKE TESTS
 # ============================================
