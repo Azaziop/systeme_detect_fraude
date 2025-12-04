@@ -70,14 +70,22 @@ build:docker-images:
   image: docker:latest
   services:
     - docker:dind
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
   script:
     - echo "Building Docker images..."
-    - docker build -f auth_service/Dockerfile -t fraud-detection-auth:latest auth_service
-    - docker build -f transaction_service/Dockerfile -t fraud-detection-transaction:latest transaction_service
-    - docker build -f fraud_detection_service/Dockerfile -t fraud-detection-ml:latest .
-    - docker build -f frontend/Dockerfile -t fraud-detection-frontend:latest frontend
+    - docker build -f auth_service/Dockerfile -t $DOCKER_USERNAME/fraud-detection-auth:latest auth_service
+    - docker build -f transaction_service/Dockerfile -t $DOCKER_USERNAME/fraud-detection-transaction:latest transaction_service
+    - docker build -f fraud_detection_service/Dockerfile -t $DOCKER_USERNAME/fraud-detection-ml:latest .
+    - docker build -f frontend/Dockerfile -t $DOCKER_USERNAME/fraud-detection-frontend:latest frontend
     - echo "Docker images built successfully"
     - docker images | grep fraud-detection
+    - echo "Pushing Docker images to Docker Hub..."
+    - docker push $DOCKER_USERNAME/fraud-detection-auth:latest
+    - docker push $DOCKER_USERNAME/fraud-detection-transaction:latest
+    - docker push $DOCKER_USERNAME/fraud-detection-ml:latest
+    - docker push $DOCKER_USERNAME/fraud-detection-frontend:latest
+    - echo "✅ All images pushed to Docker Hub"
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: on_success
