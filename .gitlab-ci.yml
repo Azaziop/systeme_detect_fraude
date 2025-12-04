@@ -26,6 +26,8 @@ variables:
 test:auth:
   stage: test
   image: python:3.9-slim
+  tags:
+    - docker
   services:
     - postgres:15-alpine
   variables:
@@ -57,6 +59,8 @@ test:auth:
 test:transaction:
   stage: test
   image: python:3.9-slim
+  tags:
+    - docker
   before_script:
     - pip install --upgrade pip
     - pip install -r transaction_service/requirements.txt
@@ -73,6 +77,8 @@ test:transaction:
 test:fraud-detection:
   stage: test
   image: python:3.9-slim
+  tags:
+    - docker
   before_script:
     - pip install --upgrade pip
     - pip install -r fraud_detection_service/requirements.txt
@@ -89,6 +95,8 @@ test:fraud-detection:
 test:ml-model:
   stage: test
   image: python:3.9-slim
+  tags:
+    - docker
   before_script:
     - pip install --upgrade pip
     - pip install -r ml_model/requirements.txt
@@ -316,24 +324,24 @@ deploy:local:
     - windows
     - local
     - shell
-  before_script:
-    - Write-Host "🚀 Déploiement local sur Windows..." -ForegroundColor Cyan
-    - Write-Host "📂 Répertoire de travail - $PWD" -ForegroundColor Cyan
+  only:
+    - main
+    - develop
   script:
+    - Write-Host "🚀 Déploiement local sur Windows..." -ForegroundColor Cyan
+    - Write-Host "📂 Répertoire - $PWD" -ForegroundColor Cyan
     - python -m venv venv --clear
-    - Write-Host "✓ Environnement virtuel créé" -ForegroundColor Green
+    - Write-Host "✓ venv créé" -ForegroundColor Green
     - "& .\\venv\\Scripts\\Activate.ps1"
     - Write-Host "📦 Installation des dépendances..." -ForegroundColor Cyan
     - python -m pip install --upgrade pip --quiet
     - pip install -r auth_service/requirements.txt --quiet
     - pip install -r transaction_service/requirements.txt --quiet
     - pip install -r fraud_detection_service/requirements.txt --quiet
-    - Write-Host "🗄️ Application des migrations Django..." -ForegroundColor Cyan
-    - cd auth_service
-    - python manage.py migrate --noinput
-    - cd ..
-    - Write-Host "🛑 Arrêt des anciens services..." -ForegroundColor Cyan
-    - Get-Process | Where-Object { $_.ProcessName -eq 'python' -and ($_.CommandLine -like '*runserver*' -or $_.CommandLine -like '*uvicorn*') } | Stop-Process -Force -ErrorAction SilentlyContinue
+    - Write-Host "🗄️ Migrations Django..." -ForegroundColor Cyan
+    - cd auth_service; python manage.py migrate --noinput; cd ..
+    - Write-Host "🛑 Arrêt des services..." -ForegroundColor Cyan
+    - Get-Process | Where-Object { $_.ProcessName -eq 'python' } | Stop-Process -Force -ErrorAction SilentlyContinue
     - Start-Sleep -Seconds 2
     - Write-Host "▶️ Démarrage des services..." -ForegroundColor Cyan
     - $projectDir = $PWD.Path
@@ -341,15 +349,17 @@ deploy:local:
     - Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoExit", "-Command", "cd '$projectDir\auth_service'; & '$pythonExe' manage.py runserver 0.0.0.0:8000"
     - Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoExit", "-Command", "cd '$projectDir\transaction_service'; & '$pythonExe' -m uvicorn main:app --host 0.0.0.0 --port 8001"
     - Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoExit", "-Command", "cd '$projectDir\fraud_detection_service'; & '$pythonExe' -m uvicorn main:app --host 0.0.0.0 --port 8002"
-    - Write-Host "⏳ Attente du démarrage des services (15s)..." -ForegroundColor Yellow
+    - Write-Host "⏳ Aguardando inicialização (15s)..." -ForegroundColor Yellow
     - Start-Sleep -Seconds 15
-    - Write-Host "✅ Vérification des services..." -ForegroundColor Cyan
-    - try { Invoke-WebRequest -Uri "http://localhost:8000" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Auth Service (8000) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Auth Service (8000) - $($_.Exception.Message)" -ForegroundColor Yellow }
-    - try { Invoke-WebRequest -Uri "http://localhost:8001/health" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Transaction Service (8001) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Transaction Service (8001) - $($_.Exception.Message)" -ForegroundColor Yellow }
-    - try { Invoke-WebRequest -Uri "http://localhost:8002/health" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Fraud Detection Service (8002) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Fraud Detection Service (8002) - $($_.Exception.Message)" -ForegroundColor Yellow }
-    - Write-Host "`n🎉 Déploiement local terminé!" -ForegroundColor Green
-    - Write-Host "🔐 Auth Service - http://localhost:8000" -ForegroundColor White
-    - Write-Host "💳 Transaction Service - http://localhost:8001" -ForegroundColor White
+    - Write-Host "✅ Verificando serviços..." -ForegroundColor Cyan
+    - try { Invoke-WebRequest -Uri "http://localhost:8000" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Auth (8000) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Auth (8000) erro" -ForegroundColor Yellow }
+    - try { Invoke-WebRequest -Uri "http://localhost:8001/health" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Transaction (8001) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Transaction (8001) erro" -ForegroundColor Yellow }
+    - try { Invoke-WebRequest -Uri "http://localhost:8002/health" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Fraud Detection (8002) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Fraud Detection (8002) erro" -ForegroundColor Yellow }
+    - Write-Host "`n🎉 Deployment concluído!" -ForegroundColor Green
+  environment:
+    name: local-development
+    url: http://localhost:8000
+  allow_failure: false
     - Write-Host "🤖 Fraud Detection Service - http://localhost:8002" -ForegroundColor White
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
