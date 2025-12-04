@@ -19,6 +19,8 @@ variables:
 test:auth:
   stage: test
   image: python:3.9-slim
+  tags:
+    - saas-linux-small-amd64
   services:
     - postgres:15-alpine
   variables:
@@ -43,12 +45,12 @@ test:auth:
   coverage: '/TOTAL.*\s+(\d+%)$/'
   only:
     - merge_requests
-    - main
-    - develop
 
 test:transaction:
   stage: test
   image: python:3.9-slim
+  tags:
+    - saas-linux-small-amd64
   before_script:
     - pip install --upgrade pip
     - pip install -r transaction_service/requirements.txt
@@ -58,12 +60,12 @@ test:transaction:
     - pytest tests.py -v || true
   only:
     - merge_requests
-    - main
-    - develop
 
 test:fraud-detection:
   stage: test
   image: python:3.9-slim
+  tags:
+    - saas-linux-small-amd64
   before_script:
     - pip install --upgrade pip
     - pip install -r fraud_detection_service/requirements.txt
@@ -73,12 +75,12 @@ test:fraud-detection:
     - pytest tests.py -v || true
   only:
     - merge_requests
-    - main
-    - develop
 
 test:ml-model:
   stage: test
   image: python:3.9-slim
+  tags:
+    - saas-linux-small-amd64
   before_script:
     - pip install --upgrade pip
     - pip install -r ml_model/requirements.txt
@@ -88,8 +90,6 @@ test:ml-model:
     - python test_model.py || true
   only:
     - merge_requests
-    - main
-    - develop
 
 # ============================================
 # STAGE: DEPLOY
