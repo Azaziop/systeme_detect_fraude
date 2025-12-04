@@ -145,7 +145,7 @@ deploy:pull-to-local:
     - docker pull $DOCKER_USERNAME/fraud-detection-ml:latest
     - docker pull $DOCKER_USERNAME/fraud-detection-frontend:latest
     - echo "✅ All images pulled to local Docker Desktop"
-    - docker images | grep fraud-detection
+    - docker images | Select-String "fraud-detection"
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: on_success
