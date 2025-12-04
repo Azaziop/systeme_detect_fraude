@@ -1,5 +1,5 @@
 # GitLab CI/CD Pipeline - Fraud Detection System
-# Real pipeline with actual Docker builds and Kubernetes deployments
+# Using GitLab SaaS runners with Docker and Kubernetes support
 
 stages:
   - lint
@@ -9,12 +9,18 @@ stages:
   - deploy
   - smoke
 
+# Docker configuration for GitLab SaaS runners
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
 # ============================================
 # STAGE: LINT
 # ============================================
 
 lint:python:
   stage: lint
+  image: python:3.9-slim
   script:
     - echo "Checking Python code..."
     - echo "✓ Python lint passed"
@@ -22,6 +28,7 @@ lint:python:
 
 lint:dockerfile:
   stage: lint
+  image: alpine:latest
   script:
     - echo "Checking Dockerfiles..."
     - echo "✓ Dockerfile checks passed"
@@ -33,6 +40,7 @@ lint:dockerfile:
 
 test:units:
   stage: test
+  image: python:3.9-slim
   script:
     - echo "Running unit tests..."
     - echo "✓ All tests passed"
@@ -44,6 +52,7 @@ test:units:
 
 integration:api:
   stage: integration
+  image: alpine:latest
   script:
     - echo "Validating services..."
     - echo "✓ Services validated"
@@ -53,11 +62,14 @@ integration:api:
       when: on_success
 
 # ============================================
-# STAGE: BUILD - REAL DOCKER BUILDS
+# STAGE: BUILD - DOCKER BUILDS
 # ============================================
 
 build:docker-images:
   stage: build
+  image: docker:latest
+  services:
+    - docker:dind
   script:
     - echo "Building Docker images..."
     - docker build -f auth_service/Dockerfile -t fraud-detection-auth:latest auth_service
@@ -72,11 +84,12 @@ build:docker-images:
   timeout: 30 minutes
 
 # ============================================
-# STAGE: DEPLOY - REAL KUBERNETES DEPLOYMENT
+# STAGE: DEPLOY - KUBERNETES
 # ============================================
 
 deploy:k8s:
   stage: deploy
+  image: bitnami/kubectl:latest
   script:
     - echo "Creating fraud-detection namespace..."
     - kubectl create namespace fraud-detection --dry-run=client -o yaml | kubectl apply -f -
@@ -98,6 +111,7 @@ deploy:k8s:
 
 deploy:verify:
   stage: deploy
+  image: bitnami/kubectl:latest
   script:
     - echo "Verifying Kubernetes deployments..."
     - sleep 5
@@ -113,11 +127,12 @@ deploy:verify:
       when: on_success
 
 # ============================================
-# STAGE: SMOKE TESTS - REAL VERIFICATION
+# STAGE: SMOKE TESTS
 # ============================================
 
 smoke:test-services:
   stage: smoke
+  image: bitnami/kubectl:latest
   script:
     - echo "Running smoke tests..."
     - echo "Checking pod status..."
