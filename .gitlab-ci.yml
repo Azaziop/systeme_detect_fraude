@@ -128,8 +128,7 @@ deploy:auth-service:
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - cd auth_service
-    - docker build -t $CI_REGISTRY_IMAGE/auth-service:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/auth-service:latest .
+    - docker build -f auth_service/Dockerfile -t $CI_REGISTRY_IMAGE/auth-service:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/auth-service:latest .
     - docker push $CI_REGISTRY_IMAGE/auth-service:$CI_COMMIT_SHORT_SHA
     - docker push $CI_REGISTRY_IMAGE/auth-service:latest
   only:
@@ -147,8 +146,7 @@ deploy:transaction-service:
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - cd transaction_service
-    - docker build -t $CI_REGISTRY_IMAGE/transaction-service:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/transaction-service:latest .
+    - docker build -f transaction_service/Dockerfile -t $CI_REGISTRY_IMAGE/transaction-service:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/transaction-service:latest .
     - docker push $CI_REGISTRY_IMAGE/transaction-service:$CI_COMMIT_SHORT_SHA
     - docker push $CI_REGISTRY_IMAGE/transaction-service:latest
   only:
@@ -165,8 +163,7 @@ deploy:fraud-detection-service:
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - cd fraud_detection_service
-    - docker build -t $CI_REGISTRY_IMAGE/fraud-detection-service:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/fraud-detection-service:latest .
+    - docker build -f fraud_detection_service/Dockerfile -t $CI_REGISTRY_IMAGE/fraud-detection-service:$CI_COMMIT_SHORT_SHA -t $CI_REGISTRY_IMAGE/fraud-detection-service:latest .
     - docker push $CI_REGISTRY_IMAGE/fraud-detection-service:$CI_COMMIT_SHORT_SHA
     - docker push $CI_REGISTRY_IMAGE/fraud-detection-service:latest
   only:

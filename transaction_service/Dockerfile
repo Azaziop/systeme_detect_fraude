@@ -10,11 +10,11 @@ RUN apt-get update && apt-get install -y \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Copier les requirements
-COPY requirements.txt .
+COPY transaction_service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copier le code du service
-COPY . .
+COPY transaction_service . .
 
 # Exposer le port
 EXPOSE 8001

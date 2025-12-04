@@ -9,14 +9,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copier les requirements
-COPY requirements.txt .
+COPY auth_service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copier le code du service
-COPY . .
+COPY auth_service . .
 
 # Script de démarrage
-COPY start.sh .
+COPY auth_service/start.sh .
 RUN chmod +x start.sh
 # Remove potential Windows CRLF line endings that break shell execution in image
 RUN sed -i 's/\r$//' start.sh || true
