@@ -1,11 +1,11 @@
 """
-Script pour entraîner le modèle de détection de fraude avec Isolation Forest
+Script pour entraîner le modèle de détection de fraude avec Random Forest et Isolation Forest
 Utilise le dataset Credit Card Fraud Detection de Kaggle
 """
 
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import IsolationForest
+from sklearn.ensemble import RandomForestClassifier, IsolationForest
 from sklearn.preprocessing import StandardScaler
 import joblib
 import os
@@ -14,7 +14,8 @@ from pathlib import Path
 # Configuration
 MODEL_DIR = Path(__file__).parent / "models"
 MODEL_DIR.mkdir(exist_ok=True)
-MODEL_PATH = MODEL_DIR / "isolation_forest_model.pkl"
+MODEL_PATH_RF = MODEL_DIR / "random_forest_model.pkl"
+MODEL_PATH_IF = MODEL_DIR / "isolation_forest_model.pkl"
 SCALER_PATH = MODEL_DIR / "scaler.pkl"
 
 def download_dataset():
@@ -91,6 +92,23 @@ def train_isolation_forest(X, contamination=0.0017):
     model.fit(X)
     return model
 
+def train_random_forest(X, y):
+    """
+    Entraîne un modèle Random Forest pour la classification
+    """
+    model = RandomForestClassifier(
+        n_estimators=100,
+        max_depth=20,
+        min_samples_split=10,
+        min_samples_leaf=5,
+        random_state=42,
+        n_jobs=-1,
+        class_weight='balanced'  # Pour gérer le déséquilibre des classes
+    )
+    
+    model.fit(X, y)
+    return model
+
 def evaluate_model(model, X, y):
     """
     Évalue le modèle
@@ -114,7 +132,7 @@ def main():
     """
     Fonction principale pour entraîner le modèle
     """
-    print("=== Entraînement du Modèle de Détection de Fraude ===\n")
+    print("=== Entraînement des Modèles de Détection de Fraude ===\n")
     
     # 1. Charger ou générer les données
     print("1. Chargement des données...")
@@ -128,18 +146,33 @@ def main():
     X, y, scaler, feature_columns = prepare_data(df)
     print(f"   Features: {len(feature_columns)}")
     
-    # 3. Entraîner le modèle
-    print("\n3. Entraînement du modèle Isolation Forest...")
-    model = train_isolation_forest(X)
-    print("   Modèle entraîné avec succès!")
+    # 3. Entraîner Random Forest
+    print("\n3. Entraînement du modèle Random Forest...")
+    model_rf = train_random_forest(X, y)
+    print("   Modèle Random Forest entraîné avec succès!")
     
-    # 4. Évaluer le modèle
-    print("\n4. Évaluation du modèle...")
-    evaluate_model(model, X, y)
+    # 4. Entraîner Isolation Forest
+    print("\n4. Entraînement du modèle Isolation Forest...")
+    model_if = train_isolation_forest(X)
+    print("   Modèle Isolation Forest entraîné avec succès!")
     
-    # 5. Sauvegarder le modèle et le scaler
-    print("\n5. Sauvegarde du modèle...")
-    joblib.dump(model, MODEL_PATH)
+    # 5. Évaluer les modèles
+    print("\n5. Évaluation des modèles...")
+    print("\n   === Random Forest ===")
+    evaluate_model(model_rf, X, y)
+    print("\n   === Isolation Forest ===")
+    predictions_if = model_if.predict(X)
+    predictions_binary_if = (predictions_if == -1).astype(int)
+    from sklearn.metrics import classification_report, confusion_matrix
+    print("Matrice de confusion:")
+    print(confusion_matrix(y, predictions_binary_if))
+    print("Rapport de classification:")
+    print(classification_report(y, predictions_binary_if))
+    
+    # 6. Sauvegarder les modèles et le scaler
+    print("\n6. Sauvegarde des modèles...")
+    joblib.dump(model_rf, MODEL_PATH_RF)
+    joblib.dump(model_if, MODEL_PATH_IF)
     joblib.dump(scaler, SCALER_PATH)
     
     # Sauvegarder aussi les noms des colonnes
@@ -147,9 +180,17 @@ def main():
     with open(MODEL_DIR / "feature_columns.json", "w") as f:
         json.dump(feature_columns, f)
     
-    print(f"   Modèle sauvegardé: {MODEL_PATH}")
+    print(f"   Modèle Random Forest sauvegardé: {MODEL_PATH_RF}")
+    print(f"   Modèle Isolation Forest sauvegardé: {MODEL_PATH_IF}")
     print(f"   Scaler sauvegardé: {SCALER_PATH}")
-    print("\n=== Entraînement terminé avec succès! ===")
+    print(f"   Features sauvegardées: {MODEL_DIR / 'feature_columns.json'}")
+    print("\n=== Entraînement des modèles terminé avec succès! ===")
+    
+    # 7. Afficher les statistiques des modèles
+    print(f"\n=== Statistiques des Modèles ===")
+    print(f"Random Forest: {model_rf.n_estimators} arbres, profondeur max: {model_rf.max_depth}")
+    print(f"Isolation Forest: {model_if.n_estimators} arbres")
+    print(f"Scaler: StandardScaler appliqué sur {len(feature_columns)} features")
 
 if __name__ == "__main__":
     main()

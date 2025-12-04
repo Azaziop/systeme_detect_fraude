@@ -15,11 +15,10 @@ spec:
       labels:
         app: transaction-service
     spec:
-      imagePullSecrets:
-      - name: gitlab-registry
       containers:
       - name: transaction-service
-        image: registry.gitlab.com/azaziop/systeme_detect_fraude/transaction-service:latest
+        image: systeme_detect_fraude-transaction-service:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8001
         env:
