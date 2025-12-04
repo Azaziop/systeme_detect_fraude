@@ -108,7 +108,7 @@ deploy:k8s:
     - echo "Validating PostgreSQL manifest..."
     - kubectl apply -f k8s/postgres-deployment.yaml --dry-run=client
     - echo "All Kubernetes manifests are valid!"
-    - echo "NOTE: Actual deployment to Kubernetes should be done locally with: kubectl apply -f k8s/"
+    - echo "NOTE: Actual deployment to Kubernetes should be done locally with kubectl apply -f k8s"
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: on_success
