@@ -6,7 +6,7 @@ metadata:
   labels:
     app: auth-service
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: auth-service
@@ -15,6 +15,10 @@ spec:
       labels:
         app: auth-service
     spec:
+      initContainers:
+      - name: wait-for-db
+        image: busybox:1.28
+        command: ['sh', '-c', 'until nc -z postgres:5432; do echo waiting for db; sleep 2; done;']
       containers:
       - name: auth-service
         image: systeme_detect_fraude-auth-service:latest
@@ -32,6 +36,19 @@ spec:
             secretKeyRef:
               name: fraud-detection-secrets
               key: django-secret-key
+        - name: DB_HOST
+          value: "postgres"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "fraud_detection"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: fraud-detection-secrets
+              key: postgres-password
         resources:
           requests:
             memory: "256Mi"

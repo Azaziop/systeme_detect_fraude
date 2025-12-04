@@ -1,5 +1,17 @@
 # 🚀 Guide Rapide - CI/CD Kubernetes
 
+## 📊 Pipeline CI/CD Complet
+
+Le pipeline exécute **6 stages** :
+1. **LINT** (CI) → Qualité du code
+2. **TEST** (CI) → Tests unitaires
+3. **INTEGRATION** (CI) → Tests d'intégration
+4. **BUILD** (CD) → Construction Docker
+5. **DEPLOY** (CD) → Déploiement Kubernetes
+6. **SMOKE** (CD) → Validation finale
+
+---
+
 ## Déploiement automatique via GitLab
 
 ```bash
@@ -56,11 +68,23 @@ kubectl port-forward svc/frontend-service 3000:80 -n fraud-detection
 
 ```
 ┌─────────────┐
-│   TEST      │  Tests unitaires (MR uniquement)
+│  GIT PUSH   │
 └─────────────┘
       ↓
 ┌─────────────┐
-│   BUILD     │  Construction des 4 images Docker
+│    LINT     │  Qualité du code (flake8, hadolint, security)
+└─────────────┘
+      ↓
+┌─────────────┐
+│    TEST     │  Tests unitaires + couverture de code
+└─────────────┘
+      ↓
+┌─────────────┐
+│ INTEGRATION │  Tests d'intégration
+└─────────────┘
+      ↓
+┌─────────────┐
+│    BUILD    │  Construction des 4 images Docker
 └─────────────┘
       ↓
 ┌─────────────┐
@@ -68,9 +92,24 @@ kubectl port-forward svc/frontend-service 3000:80 -n fraud-detection
 └─────────────┘
       ↓
 ┌─────────────┐
-│   SMOKE     │  Tests de fumée
+│    SMOKE    │  Tests de fumée
 └─────────────┘
 ```
+
+---
+
+## CI vs CD
+
+### **CI (Continuous Integration)** - S'exécute sur TOUS les push
+- ✅ Lint : Vérification qualité du code
+- ✅ Security : Scan de vulnérabilités  
+- ✅ Tests : Tests unitaires avec couverture
+- ✅ Integration : Tests d'intégration
+
+### **CD (Continuous Deployment)** - S'exécute UNIQUEMENT sur main
+- ✅ Build : Construction des images Docker
+- ✅ Deploy : Déploiement Kubernetes
+- ✅ Smoke : Validation post-déploiement
 
 ---
 

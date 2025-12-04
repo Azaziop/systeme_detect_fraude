@@ -6,7 +6,7 @@ metadata:
   labels:
     app: fraud-detection-service
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: fraud-detection-service
@@ -21,9 +21,6 @@ spec:
         imagePullPolicy: Never
         ports:
         - containerPort: 8002
-        volumeMounts:
-        - name: ml-models
-          mountPath: /app/ml_model/models
         resources:
           requests:
             memory: "512Mi"
@@ -43,11 +40,6 @@ spec:
             port: 8002
           initialDelaySeconds: 10
           periodSeconds: 5
-      volumes:
-      - name: ml-models
-        hostPath:
-          path: /ml_model/models
-          type: Directory
 
 ---
 apiVersion: v1

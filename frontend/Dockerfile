@@ -5,7 +5,7 @@ WORKDIR /usr/share/nginx/html
 
 # Remove default nginx index if any and copy our files
 RUN rm -rf ./*
-COPY . .
+COPY frontend/ .
 
 # Expose nginx HTTP port
 EXPOSE 80
