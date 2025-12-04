@@ -318,29 +318,35 @@ deploy:local:
     - shell
   before_script:
     - Write-Host "🚀 Déploiement local sur Windows..." -ForegroundColor Cyan
+    - Write-Host "📂 Répertoire de travail - $PWD" -ForegroundColor Cyan
   script:
-    - if (Test-Path ".\venv\Scripts\Activate.ps1") { & .\venv\Scripts\Activate.ps1; Write-Host "✓ Environnement virtuel activé" -ForegroundColor Green } else { Write-Host "✗ Environnement virtuel non trouvé" -ForegroundColor Red; exit 1 }
+    - python -m venv venv --clear
+    - Write-Host "✓ Environnement virtuel créé" -ForegroundColor Green
+    - "& .\\venv\\Scripts\\Activate.ps1"
     - Write-Host "📦 Installation des dépendances..." -ForegroundColor Cyan
-    - pip install --upgrade pip --quiet
+    - python -m pip install --upgrade pip --quiet
     - pip install -r auth_service/requirements.txt --quiet
     - pip install -r transaction_service/requirements.txt --quiet
     - pip install -r fraud_detection_service/requirements.txt --quiet
     - Write-Host "🗄️ Application des migrations Django..." -ForegroundColor Cyan
-    - cd auth_service ; python manage.py migrate --noinput ; cd ..
+    - cd auth_service
+    - python manage.py migrate --noinput
+    - cd ..
     - Write-Host "🛑 Arrêt des anciens services..." -ForegroundColor Cyan
-    - Get-Process | Where-Object {$_.CommandLine -like "*manage.py*runserver*" -or $_.CommandLine -like "*uvicorn*main:app*"} | Stop-Process -Force -ErrorAction SilentlyContinue
+    - Get-Process | Where-Object { $_.ProcessName -eq 'python' -and ($_.CommandLine -like '*runserver*' -or $_.CommandLine -like '*uvicorn*') } | Stop-Process -Force -ErrorAction SilentlyContinue
     - Start-Sleep -Seconds 2
     - Write-Host "▶️ Démarrage des services..." -ForegroundColor Cyan
-    - $pythonExe = "$PWD\venv\Scripts\python.exe"
-    - Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoExit", "-Command", "cd '$PWD\auth_service'; & '$pythonExe' manage.py runserver 0.0.0.0:8000"
-    - Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoExit", "-Command", "cd '$PWD\transaction_service'; & '$pythonExe' -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload"
-    - Start-Process powershell -WindowStyle Minimized -ArgumentList "-NoExit", "-Command", "cd '$PWD\fraud_detection_service'; & '$pythonExe' -m uvicorn main:app --host 0.0.0.0 --port 8002 --reload"
-    - Write-Host "⏳ Attente du démarrage des services (10s)..." -ForegroundColor Yellow
-    - Start-Sleep -Seconds 10
+    - $projectDir = $PWD.Path
+    - $pythonExe = Join-Path $projectDir "venv\Scripts\python.exe"
+    - Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoExit", "-Command", "cd '$projectDir\auth_service'; & '$pythonExe' manage.py runserver 0.0.0.0:8000"
+    - Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoExit", "-Command", "cd '$projectDir\transaction_service'; & '$pythonExe' -m uvicorn main:app --host 0.0.0.0 --port 8001"
+    - Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoExit", "-Command", "cd '$projectDir\fraud_detection_service'; & '$pythonExe' -m uvicorn main:app --host 0.0.0.0 --port 8002"
+    - Write-Host "⏳ Attente du démarrage des services (15s)..." -ForegroundColor Yellow
+    - Start-Sleep -Seconds 15
     - Write-Host "✅ Vérification des services..." -ForegroundColor Cyan
-    - try { Invoke-WebRequest -Uri "http://localhost:8000" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Auth Service (8000) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Auth Service (8000) ERREUR" -ForegroundColor Red }
-    - try { Invoke-WebRequest -Uri "http://localhost:8001/health" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Transaction Service (8001) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Transaction Service (8001) ERREUR" -ForegroundColor Red }
-    - try { Invoke-WebRequest -Uri "http://localhost:8002/health" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Fraud Detection Service (8002) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Fraud Detection Service (8002) ERREUR" -ForegroundColor Red }
+    - try { Invoke-WebRequest -Uri "http://localhost:8000" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Auth Service (8000) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Auth Service (8000) - $($_.Exception.Message)" -ForegroundColor Yellow }
+    - try { Invoke-WebRequest -Uri "http://localhost:8001/health" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Transaction Service (8001) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Transaction Service (8001) - $($_.Exception.Message)" -ForegroundColor Yellow }
+    - try { Invoke-WebRequest -Uri "http://localhost:8002/health" -TimeoutSec 5 -UseBasicParsing | Out-Null; Write-Host "  ✓ Fraud Detection Service (8002) OK" -ForegroundColor Green } catch { Write-Host "  ✗ Fraud Detection Service (8002) - $($_.Exception.Message)" -ForegroundColor Yellow }
     - Write-Host "`n🎉 Déploiement local terminé!" -ForegroundColor Green
     - Write-Host "🔐 Auth Service - http://localhost:8000" -ForegroundColor White
     - Write-Host "💳 Transaction Service - http://localhost:8001" -ForegroundColor White
